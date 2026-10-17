@@ -1,0 +1,356 @@
+#!/bin/sh
+#
+# H69K 风扇总控守护进程（常驻）
+#
+# 设计要点
+# --------
+# 1. 四种模式（UCI: hinlinkfan.global.mode），由本进程统一调度：
+#      kernel  内核温控（默认）：控制权交还设备树 cooling-maps（pwm1_enable=2），
+#              本进程只监视温度/内核档位，不写 pwm1 —— 绝不动内核的手
+#      manual  自定义曲线：接管（pwm1_enable=1），按"温度->转速"曲线调速
+#      off     强制停转：pwm1=0 + pwm1_enable=0（放弃风扇散热保护，仅调试用）
+#      full    全速：pwm1_enable=1 + pwm1=255（压测、刷机等重载场景）
+# 2. 每 tick 重读一次 UCI，改配置立即生效，不需要重启服务。
+# 3. 退出（SIGTERM/异常）时一定把 pwm1_enable 写回 2 交还内核温控，
+#    否则内核设备树的过热保护会永久失效（旧版正是踩了这个坑）。
+# 4. 手动曲线模式的调速策略：
+#      · 升温立即响应（安全优先），降温每 tick 最多降 RAMP（听感平顺）
+#      · 降档带 HYST 回差，避免在阈值上反复起停
+#      · 读温度连续失败时升到 60% 兜底，不许 CPU 裸奔
+# 5. 状态写入 /var/run/hinlinkfan.state 供 LuCI 显示：
+#      mode/temp/pwm/target/level/note/upd
+#
+# 配置见 /etc/config/hinlinkfan。
+
+. /usr/lib/hinlinkfan/common.sh
+
+MODE=kernel
+TICK=2
+HYST=5
+RAMP=32
+CURVE=""
+DEFAULT_CURVE="45:90 55:120 65:165 75:210"
+
+CUR=0
+LVL=0
+FAILS=0
+KSTATE=""
+KMAX=""
+LAST_KMODE=""
+LAST_MODE=""
+LAST_LOG=""
+
+# ---------- 曲线工具（用位置参数模拟数组，busybox ash 没有数组） ----------
+
+curve_count() {
+	set -- $CURVE
+	echo $#
+}
+
+# 取第 $1 项的 "温度:转速" 原文
+curve_field() {
+	local i=$1
+
+	set -- $CURVE
+	[ "$i" -ge 1 ] && [ "$i" -le $# ] || return 1
+	while [ "$i" -gt 1 ]; do
+		shift
+		i=$((i - 1))
+	done
+
+	echo "$1"
+}
+
+curve_thr() {
+	curve_field "$1" | cut -d: -f1
+}
+
+curve_pwm() {
+	curve_field "$1" | cut -d: -f2
+}
+
+# 温度 -> 理想的档位（不含回差）
+curve_want() {
+	local t=$1 i=0 w=0 e
+
+	set -- $CURVE
+	for e in "$@"; do
+		i=$((i + 1))
+		[ "$t" -ge "${e%%:*}" ] && w=$i
+	done
+
+	echo "$w"
+}
+
+# ---------- 配置 ----------
+
+# 把 UCI 里的曲线规范化：排序、去重、范围校验、转速单调不减
+normalize_curve() {
+	local raw out="" e t p tprev=0 n=0 last=0 bad=0
+
+	raw=$(echo "$1" | tr ' ' '\n' | grep -E '^[0-9]+:[0-9]+$' |
+		awk -F: '$1 >= 20 && $1 <= 110 && $2 >= 0 && $2 <= 255' |
+		sort -n -t: -k1,1 | awk -F: '!seen[$1]++')
+	raw=$(echo $raw)
+
+	for e in $raw; do
+		t=${e%%:*}
+		p=${e##*:}
+		[ "$n" -gt 0 ] && [ "$t" -le "$tprev" ] && bad=1
+		# 转速单调不减，否则会出现"温度升高转速反而下降"
+		[ "$p" -lt "$last" ] && p=$last
+		tprev=$t
+		last=$p
+		out="$out $t:$p"
+		n=$((n + 1))
+	done
+
+	# 曲线无效（空/格式错/温度重复）就用设备树档位对应的默认曲线兜底
+	if [ "$n" -lt 2 ] || [ "$bad" = 1 ]; then
+		out=""
+		last=0
+		for e in $DEFAULT_CURVE; do
+			t=${e%%:*}
+			p=${e##*:}
+			[ "$p" -lt "$last" ] && p=$last
+			last=$p
+			out="$out $t:$p"
+		done
+	fi
+
+	echo "${out# }"
+}
+
+load_config() {
+	local m raw newcurve
+
+	config_load hinlinkfan
+	config_get m global mode kernel
+	config_get TICK global tick 2
+	config_get HYST global hysteresis 5
+	config_get RAMP global ramp 32
+	config_get raw global curve
+
+	case "$m" in
+	kernel|manual|off|full) MODE=$m ;;
+	*) MODE=kernel ;;
+	esac
+
+	case "$TICK" in ''|*[!0-9]*) TICK=2 ;; esac
+	case "$HYST" in ''|*[!0-9]*) HYST=5 ;; esac
+	case "$RAMP" in ''|*[!0-9]*) RAMP=32 ;; esac
+	[ "$TICK" -lt 1 ] && TICK=1
+	[ "$TICK" -gt 60 ] && TICK=60
+	[ "$RAMP" -lt 1 ] && RAMP=1
+	[ "$RAMP" -gt 255 ] && RAMP=255
+
+	newcurve=$(normalize_curve "$raw")
+	if [ "$newcurve" != "$CURVE" ]; then
+		CURVE=$newcurve
+		[ "$MODE" = manual ] && hinlinkfan_log "曲线已更新:$CURVE"
+	fi
+}
+
+# ---------- 状态 / 工具 ----------
+
+# 内核当前档位、设备树给的最大档位
+kernel_state() {
+	local c
+
+	KSTATE=""
+	KMAX=""
+	c=$(hinlinkfan_cdev) || return 0
+	KSTATE=$(cat "$c/cur_state" 2>/dev/null)
+	KMAX=$(cat "$c/max_state" 2>/dev/null)
+}
+
+# 只在内容变化时记日志，避免每 tick 刷日志
+log_once() {
+	[ "$LAST_LOG" = "$1" ] && return 0
+	LAST_LOG=$1
+	hinlinkfan_log "$1"
+}
+
+# “交还内核温控”的仪式：
+#   1) pwm1_enable=2：把控制权交回设备树 cooling-maps；
+#   2) 把冷却档位纠正成“当前温度该有的档位”。
+# 为什么必须做第 2 步：drivers/hwmon/pwm-fan.c 里写 pwm1 会走 pwm_fan_update_state()
+# 把驱动内部的热控档位改成与 PWM 对应的那一档（例如 255 => 最高档）；而内核调速器
+# 自己的目标值没变时**不会主动重写**，于是交还内核后驱动又把被污染的档位应用回去
+# —— 表现为“切回内核温控不生效，风扇停在上一个档位（如全速 255/档位 5）”。
+# 档位与温度的对应沿用 curve（默认曲线就是设备树 45/55/65/75°C 那套），并按
+# cooling device 的 max_state 夹紧。只在“刚交还内核”时做一次，之后不再插手。
+kernel_handback() {
+	local temp lvl max c
+
+	c=$(hinlinkfan_cdev) || return 0
+	max=$(cat "$c/max_state" 2>/dev/null)
+	temp=$(read_temp_c)
+
+	case "$temp" in
+	''|*[!0-9]*) lvl=0 ;;
+	*) lvl=$(curve_want "$temp") ;;
+	esac
+	case "$max" in
+	''|*[!0-9]*) : ;;
+	*) [ "$lvl" -gt "$max" ] && lvl=$max ;;
+	esac
+
+	echo "$lvl" >"$c/cur_state" 2>/dev/null || return 0
+	hinlinkfan_log "交还内核温控：按当前 ${temp:-?}°C 把档位重置为 ${lvl}/${max:-?}"
+}
+
+read_temp_c() {
+	local mc
+
+	mc=$(hinlinkfan_temp_mc)
+	case "$mc" in
+	''|*[!0-9]*) echo "" ;;
+	*) echo $((mc / 1000)) ;;
+	esac
+}
+
+# 强制停转：先手动写 0，再关闭 PWM 输出
+force_off() {
+	hinlinkfan_set_pwm_enable 1 >/dev/null 2>&1
+	hinlinkfan_set_pwm 0 >/dev/null 2>&1
+	CUR=0
+	hinlinkfan_set_pwm_enable 0 >/dev/null 2>&1
+}
+
+cleanup() {
+	# 交还控制权：设备树内核温控（pwm1_enable=2），并把被手动写带歪的档位纠回来
+	hinlinkfan_set_pwm_enable 2 >/dev/null 2>&1
+	kernel_handback
+	state_dump kernel "$(read_temp_c)" "$(hinlinkfan_get_pwm)" "" "" "守护进程退出，已交还内核温控"
+	hinlinkfan_log "退出，控制权已交还内核温控"
+	exit 0
+}
+
+state_dump() {
+	# $1=mode $2=temp $3=pwm $4=target $5=level $6=note
+	hinlinkfan_state_write "$1" "$2" "$3" "$4" "$5" "$6"
+}
+
+# ---------- 各模式 tick ----------
+
+kernel_tick() {
+	kernel_state
+	# 温和地保证内核温控在生效（被别的程序改过就纠回来），不写 pwm1
+	hinlinkfan_set_pwm_enable 2 >/dev/null 2>&1
+
+	if [ -n "$KSTATE" ] && [ "$KSTATE" != "$LAST_KMODE" ]; then
+		LAST_KMODE=$KSTATE
+		log_once "内核温控档位 -> ${KSTATE}/${KMAX}（设备树 cooling-levels）"
+	fi
+
+	state_dump kernel "$(read_temp_c)" "$(hinlinkfan_get_pwm)" "" "$KSTATE" \
+		"内核设备树温控（档位 ${KSTATE:-?}/${KMAX:-?}）"
+}
+
+# 注意：本函数会改写全局 LVL/CUR/FAILS，所以调用时**不能**放在 $(...) 里，
+# 否则会在子 shell 中执行、状态变化全部丢失（风扇就不会调速了）。
+manual_tick() {
+	local mc temp want thr target was
+
+	mc=$(hinlinkfan_temp_mc)
+	case "$mc" in
+	''|*[!0-9]*)
+		temp=""
+		FAILS=$((FAILS + 1))
+		;;
+	*)
+		was=$FAILS
+		FAILS=0
+		[ "$was" -ge 5 ] && log_once "温度读取已恢复，按曲线正常调速"
+		temp=$((mc / 1000))
+		want=$(curve_want "$temp")
+		if [ "$want" -lt "$LVL" ]; then
+			# 回差：降到更低档必须比当前档阈值低 HYST 度
+			thr=$(curve_thr "$LVL")
+			[ "$temp" -lt $((thr - HYST)) ] && LVL=$want
+		else
+			LVL=$want
+		fi
+		;;
+	esac
+
+	if [ "$FAILS" -ge 5 ]; then
+		target=153
+		# 只在刚跌到第 5 次时记一条，避免每 tick 刷日志
+		[ "$FAILS" -eq 5 ] && hinlinkfan_log "连续 5 次读温度失败，风扇兜底到 153/255"
+	elif [ "$LVL" -eq 0 ]; then
+		target=0
+	else
+		target=$(curve_pwm "$LVL")
+	fi
+
+	# 升温立即响应，降温按 RAMP 缓落，避免转速突变
+	if [ "$CUR" -lt "$target" ]; then
+		CUR=$target
+	elif [ "$CUR" -gt "$target" ]; then
+		CUR=$((CUR - RAMP))
+		[ "$CUR" -lt "$target" ] && CUR=$target
+	fi
+
+	hinlinkfan_set_pwm_enable 1 >/dev/null 2>&1
+	hinlinkfan_set_pwm "$CUR" || log_once "写 pwm=$CUR 失败"
+
+	state_dump manual "$temp" "$CUR" "$target" "$LVL" \
+		"用户态曲线（档位 ${LVL}, 目标 ${target}）"
+}
+
+# ---------- 主循环 ----------
+
+main() {
+	[ -r /lib/functions.sh ] || {
+		hinlinkfan_log "缺少 /lib/functions.sh"
+		exit 1
+	}
+	. /lib/functions.sh
+
+	trap 'cleanup' TERM INT EXIT
+
+	load_config
+	hinlinkfan_log "风扇守护启动，模式=$MODE"
+
+	while :; do
+		# 每轮重读配置：改 UCI 立即生效
+		load_config
+
+		# 从其它模式切回内核温控（或启动时就是内核）：纠正一次被带歪的档位
+		if [ "$MODE" = kernel ] && [ "$LAST_MODE" != kernel ]; then
+			hinlinkfan_set_pwm_enable 2 >/dev/null 2>&1
+			kernel_handback
+		fi
+		LAST_MODE=$MODE
+
+		case "$MODE" in
+		off)
+			force_off
+			state_dump off "$(read_temp_c)" 0 0 0 "强制停转（无风扇散热保护）"
+			log_once "模式=off 强制停转"
+			;;
+		full)
+			hinlinkfan_set_pwm_enable 1 >/dev/null 2>&1
+			hinlinkfan_set_pwm 255 >/dev/null 2>&1
+			state_dump full "$(read_temp_c)" 255 255 5 "全速运转"
+			log_once "模式=full 全速"
+			;;
+		manual)
+			# 直接调用（不要放 $() 里，否则 LVL/CUR 的修改会丢在子 shell 里）
+			manual_tick
+			;;
+		*)
+			kernel_tick
+			;;
+		esac
+
+		sleep "$TICK"
+	done
+}
+
+# HINFAN_TEST=1 时只加载函数，不启动主循环（用于本地单测）
+# 注意：本地单测要把这个文件拷到临时目录再改 source 路径，千万别改工作区源文件，
+# 否则测试路径会被打进固件（真实踩过：daemon 起来就 crash loop，风扇彻底不转）。
+[ -n "$HINFAN_TEST" ] || main "$@"

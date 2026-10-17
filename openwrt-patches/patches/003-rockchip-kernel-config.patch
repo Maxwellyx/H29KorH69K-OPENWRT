@@ -1,0 +1,23 @@
+--- /dev/null
++++ b/target/linux/rockchip/config-6.18
+@@ -0,0 +1,20 @@
++# Rockchip 目标的内核配置片段
++#
++# 由 package/daocaoren/openwrt-patches/patches/003-rockchip-kernel-config.patch 创建
++# （上游 openwrt 的 rockchip target 没有自己的 config-6.18）。
++#
++# 1) H29K 硬件 RNG：dts/kernel-patches/185-arm64-dts-rockchip-add-rkrng-support.patch
++#    给 drivers/char/hw_random/rockchip-rng.c 加了 rk3528 的 RKRNG 支持。
++CONFIG_HW_RANDOM=y
++CONFIG_HW_RANDOM_ROCKCHIP=y
++#
++# 2) H29K 的 GC9307 SPI 屏（内核 staging/fbtft 框架 + tft-display 应用）：
++#    drivers/staging/fbtft/Kconfig 要求 FB && SPI && FB_DEVICE
++#    && BACKLIGHT_CLASS_DEVICE && GPIOLIB，且整段位于 if STAGING 里面。
++#    CONFIG_FB_TFT=m 产出 fbtft.ko（由 kmod-fb-tft 打包，gc9307.ko 依赖它）。
++#    注意 generic/config-6.18 里有 # CONFIG_FB_TFT is not set，
++#    本片段在 generic 之后合并，以本片段为准。
++CONFIG_STAGING=y
++CONFIG_FB_DEVICE=y
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
++CONFIG_FB_TFT=m

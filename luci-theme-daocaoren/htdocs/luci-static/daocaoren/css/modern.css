@@ -1,0 +1,422 @@
+/*! 登录页专用层（2026-10-09）
+ *  用户要求："退回所有修改，只保留登录页修改" ⇒ 后台已回原版（原 header.htm 不加载本文件）。
+ *  ⚠️ 必须带上 :root 令牌块：登录页的 padding/margin 用了 var(--dc-sp-*)，
+ *     缺了令牌 → 声明 invalid-at-computed-value-time → 输入框 padding 归 0（文字顶到边框上，踩过）。
+ */
+/*!
+ * ============================================================================
+ *  daocaoren theme · 现代企业级外观层（iKuai 风格，v3.0）
+ * ============================================================================
+ *  设计取向：像爱快（iKuai）那种"网管台"观感 ——
+ *    · 深蓝渐变顶栏（白字 + 半透明状态胶囊）
+ *    · 左侧白底菜单，图标在浅蓝圆角方块里，**选中项整块蓝底白字**
+ *    · 卡片带浅蓝渐变标题条 + 蓝色小竖条，圆角小（6px）、描边细
+ *    · 表头浅蓝灰、行悬停高亮、首列加粗
+ *    · 状态用彩色软底标签（绿/蓝/橙/红）、进度条蓝色渐变
+ *    · 按钮蓝色渐变实心 / 白底描边次级
+ *
+ *  这仍是**纯外观层**：不改任何 DOM（除模板里加的那个 <html data-ds> 小脚本）。
+ *  加载顺序（见 themes/daocaoren/header*.htm）：
+ *      cascade.css  →（深色时）内联 dark.css  →  modern.css（最后，所以覆盖得动上面两个）
+ *  ⚠️ 正因为在最后，老 dark.css 里那些 !important 的硬编码要用同样的 !important 顶回来（见 §9）。
+ *
+ *  令牌：本层新增变量统一前缀 --dc-；主题自己的 --primary / --dark-primary 只读不改，
+ *  所以用户在 /etc/config/daocaoren 里换主题色时，顶栏渐变 / 按钮 / 选中态会一起跟着换。
+ * ============================================================================
+ */
+
+/* ==========================================================================
+ *  §1  设计令牌
+ * ========================================================================== */
+:root {
+	/* 圆角：企业台偏小（4 / 6），只有胶囊是圆的 */
+	--dc-r-xs: 3px;
+	--dc-r-sm: 4px;
+	--dc-r: 6px;
+	--dc-r-lg: 8px;
+	--dc-r-xl: 12px;
+	--dc-r-pill: 999px;
+
+	--dc-sp-1: 4px;  --dc-sp-2: 8px;  --dc-sp-3: 12px; --dc-sp-4: 16px;
+	--dc-sp-5: 20px; --dc-sp-6: 24px; --dc-sp-7: 32px;
+
+	--dc-h: 34px;         /* 控件标准高度（比现代 SaaS 略紧凑，接近 iKuai） */
+	--dc-h-sm: 28px;
+	--dc-sidebar-w: 232px;
+	--dc-header-h: 52px;
+
+	/* ⚠️ 字体栈：爱快后台在 Windows 上就是用**微软雅黑**，所以雅黑放第一位（原来雅黑排在 Segoe UI 后面，
+	   西文会走 Segoe UI，和爱快一眼就不是一个字体）。 */
+	--dc-font: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB",
+		"Source Han Sans SC", "Helvetica Neue", Arial, sans-serif;
+	--dc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+	--dc-fs-xs: 12px;
+	--dc-fs-sm: 13px;
+	--dc-fs: 14px;          /* 爱快后台正文就是 14px（原来是 13px，整体小一号） */
+	--dc-fs-md: 15px;
+	--dc-fs-lg: 17px;
+	--dc-fs-xl: 22px;
+
+	/* 表面（白底 + 浅蓝灰分隔，iKuai 的底色偏冷） */
+	--dc-bg: #f0f3f8;
+	--dc-surface: #ffffff;
+	--dc-surface-2: #f7f9fd;
+	--dc-surface-3: #eef2f9;
+	--dc-border: #e4eaf3;
+	--dc-border-2: #cfd9e8;
+	--dc-text: #333333;      /* 爱快正文色（不是现在的深蓝黑） */
+	--dc-text-2: #4a4a4a;
+	--dc-muted: #7a7a7a;     /* 爱快标签/次要文字是中性灰 #666~#7a7a7a */
+	--dc-shadow-1: 0 1px 2px rgba(31, 47, 82, .06);
+	--dc-shadow-2: 0 2px 10px rgba(31, 47, 82, .06);
+	--dc-shadow-3: 0 8px 28px rgba(31, 47, 82, .16);
+
+	/* 顶栏渐变 / 侧栏图标底色：都由 --primary 推出来，换主题色也跟着变 */
+	--dc-accent: var(--primary, #3b82f6);
+	--dc-accent-fill: var(--primary, #3b82f6);
+	--dc-accent-ink: #ffffff;
+	--dc-accent-soft: rgba(59, 130, 246, .10);
+	--dc-accent-soft: color-mix(in srgb, var(--primary, #3b82f6) 10%, transparent);
+	--dc-accent-soft-2: rgba(59, 130, 246, .18);
+	--dc-accent-soft-2: color-mix(in srgb, var(--primary, #3b82f6) 18%, transparent);
+	--dc-accent-line: rgba(59, 130, 246, .35);
+	--dc-accent-line: color-mix(in srgb, var(--primary, #3b82f6) 35%, transparent);
+	--dc-ring: 0 0 0 3px rgba(59, 130, 246, .18);
+	--dc-ring: 0 0 0 3px color-mix(in srgb, var(--primary, #3b82f6) 20%, transparent);
+
+	/* ⭐ 顶栏渐变（深海军蓝 → 主题色），iKuai 最显眼的那一块 */
+	--dc-topbar: linear-gradient(96deg, #16233c 0%, #1f3a6b 42%, var(--primary, #3b82f6) 100%);
+	/* 卡片标题条：极浅的主题色 → 白 */
+	--dc-cardhead: linear-gradient(180deg, rgba(59, 130, 246, .06) 0%, rgba(255, 255, 255, 0) 100%);
+
+	/* 语义色（iKuai 的绿/橙/红都偏鲜一点） */
+	--dc-ok: #0f9d58;    --dc-ok-soft: #e8f8ef;   --dc-ok-line: #b6e7cd;
+	--dc-warn: #e08b00;  --dc-warn-soft: #fff8e6; --dc-warn-line: #ffe0a3;
+	--dc-err: #e5484d;   --dc-err-soft: #fdeded;  --dc-err-line: #f8c8c9;
+	--dc-info: #3b82f6;  --dc-info-soft: #eaf3ff; --dc-info-line: #c3ddff;
+}
+/* ---------- 卡片 ---------- */
+.cbi-section,
+fieldset.cbi-section,
+[data-tab-title],
+#cbi-network > .cbi-section-node,
+#cbi-wireless > .cbi-section-node,
+#cbi-wireless > #wifi_assoclist_table,
+.Firewall form,
+.cbi-section-error,
+#iptables,
+[data-page="admin-system-opkg"] #maincontent > .container,
+[data-page^="admin-system-admin"]:not(.node-main-login) .cbi-map:not(#cbi-dropbear) {
+	background: var(--dc-surface) !important;
+	border: 1px solid var(--dc-border) !important;
+	border-radius: var(--dc-r) !important;
+	box-shadow: var(--dc-shadow-2) !important;
+	margin: 0 0 var(--dc-sp-4) !important;
+	padding: 0 !important;
+	overflow: hidden;
+}
+/* 主按钮：蓝色渐变实心 */
+.cbi-button-apply, .cbi-button-save, .cbi-button-action, .cbi-button-positive,
+.cbi-button[value="Submit"], .cbi-button[value="Upload"], .cbi-button[value$="Apply"],
+.cbi-button[value="Enable"], .cbi-button[value="Scan"], .cbi-input-save,
+.cbi-page-actions .cbi-button-save, .cbi-page-actions .cbi-button-apply,
+.btn.primary, .cbi-button-reload, .cbi-button-edit.important, .cbi-button-apply.important {
+	background: linear-gradient(180deg, color-mix(in srgb, var(--dc-accent-fill) 88%, #ffffff) 0%, var(--dc-accent-fill) 100%) !important;
+	background: var(--dc-accent-fill) !important;
+	border-color: var(--dc-accent-fill) !important;
+	color: var(--dc-accent-ink) !important;
+	box-shadow: 0 1px 3px rgba(31, 47, 82, .18) !important;
+}
+.cbi-button-apply:hover, .cbi-button-save:hover, .cbi-button-action:hover, .cbi-button-positive:hover,
+.cbi-page-actions .cbi-button-save:hover, .cbi-page-actions .cbi-button-apply:hover,
+.btn.primary:hover {
+	background: var(--dc-accent-fill) !important;
+	border-color: var(--dc-accent-fill) !important;
+	color: var(--dc-accent-ink) !important;
+	filter: brightness(1.08);
+	box-shadow: 0 4px 12px rgba(31, 47, 82, .22) !important;
+}
+.cbi-page-actions .cbi-button-apply + .cbi-button-save { margin-left: 0 !important; }
+/* ==========================================================================
+ *  §7  登录页（深色辉光 + 玻瑃卡，按参考站那类 AI 控制台登录页做）
+ *  设计要点（一律写死在 --lg-* 里，**不跟随后台的明/暗模式** ——
+ *  登录页就是要“一眼高级”，白卡在黑底上反而显得简陋）：
+ *    · 底色 #0a0d14，四层极光光晕（青/蓝/紫）缓慢呼吸
+ *    · canvas 粒子：三层视差星点 + 偶发流星（js/login-bg.js）
+ *    · 卡片：深色半透明玻璃 + backdrop blur + 1px 白描边 + 青蓝外发光
+ *    · 强调色一律青蓝 #22d3ee，聚焦/悬停都带柔和辉光
+ *  ⚠️ 老样式是“左侧整条竖栏”（绝对定位 + margin-left:5% + .login-form 的 min-height:100%），
+ *     覆盖要连 position / width / min-height 一起写，只改颜色会留下压扁的怪形状。
+ * ========================================================================== */
+.login-page {
+	/* —— 登录页自己的令牌（不参与后台主题色体系，只为了“好看且稳定”）—— */
+	--lg-bg: #05070e;
+	--lg-card: rgba(14, 14, 26, 0.74);
+	--lg-card-line: rgba(255, 255, 255, 0.09);
+	--lg-text: #eaf2ff;
+	--lg-muted: #8b9cb5;
+	--lg-field: rgba(255, 255, 255, 0.045);
+	--lg-field-line: rgba(255, 255, 255, 0.10);
+	--lg-cyan: #22d3ee;
+	--lg-cyan-deep: #0891b2;
+	--lg-ring: 0 0 0 3px rgba(34, 211, 238, 0.18);
+
+	position: relative;
+	height: 100vh;
+	width: 100%;
+	overflow: hidden;
+	background: var(--lg-bg);
+	color-scheme: dark;
+}
+/* 极光底：四层径向光晕，div 自己在呼吸（见下方 @keyframes） */
+.login-page::before {
+	content: "";
+	position: absolute;
+	inset: -10%;
+	z-index: 0;
+	background:
+		radial-gradient(900px 520px at 14% 6%, rgba(150, 60, 190, 0.10) 0%, rgba(150, 60, 190, 0) 62%),
+		radial-gradient(760px 460px at 88% 10%, rgba(110, 50, 170, 0.09) 0%, rgba(110, 50, 170, 0) 60%),
+		radial-gradient(820px 520px at 82% 96%, rgba(150, 70, 200, 0.09) 0%, rgba(150, 70, 200, 0) 62%),
+		radial-gradient(700px 420px at 6% 92%, rgba(70, 40, 130, 0.10) 0%, rgba(70, 40, 130, 0) 62%),
+		linear-gradient(170deg, #06070f 0%, #0b0a16 55%, #06070e 100%);
+	animation: dcAurora 18s ease-in-out infinite alternate;
+}
+/* 星空画布（自研，见 js/login-bg.js）：登录页背景就它一层 */
+#dc-login-bg { position: absolute; inset: 0; z-index: 1; display: block; pointer-events: none; }
+/* 自备背景图一律不用了（用户 2026-10-08 要求：不要背景图片）。
+   模板（sysauth.htm）已经不再输出这个节点，这里再兵一道底：
+   万一哪个旧模板/旧缓存还输出 .main-bg，也不会突然冒出一张照片。
+   想恢复壁纸：删掉下面这条 display，再把 sysauth.htm 里那行改回 selectBackground(themeDir)。 */
+.login-page .main-bg { display: none !important; }
+.login-page .main-bg::after { content: none; }
+.login-page::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	background:
+		radial-gradient(1100px 620px at 12% -8%, rgba(140, 60, 185, .09) 0%, rgba(140, 60, 185, 0) 62%),
+		radial-gradient(900px 560px at 100% 100%, rgba(150, 70, 200, .09) 0%, rgba(150, 70, 200, 0) 58%),
+		linear-gradient(170deg, #06070f 0%, #0b0a16 55%, #06070e 100%);
+}
+.login-page .login-container {
+	position: absolute;
+	inset: 0;
+	margin: 0 !important;
+	width: 100% !important;
+	height: auto;
+	min-height: 0;
+	padding: var(--dc-sp-6);
+	box-shadow: none !important;
+	background: none !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 3;
+}
+.login-page .login-container .login-form {
+	position: static !important;
+	inset: auto !important;
+	display: block !important;
+	width: 100% !important;
+	max-width: 404px;
+	min-height: 0 !important;
+	height: auto !important;
+	margin: 0 !important;
+	padding: 0 0 var(--dc-sp-6) !important;
+	/* 玻璃卡：半透明深底 + 背景模糊 + 1px 白描边 + 青蓝外发光 */
+	background: var(--lg-card) !important;
+	border: 1px solid var(--lg-card-line) !important;
+	border-radius: 18px !important;
+	box-shadow:
+		0 30px 70px -28px rgba(0, 0, 0, .95),
+		0 0 0 1px rgba(255, 255, 255, .02) inset,
+		0 0 46px -18px rgba(34, 211, 238, .35) !important;
+	-webkit-backdrop-filter: blur(18px) saturate(1.5) !important;
+	backdrop-filter: blur(18px) saturate(1.5) !important;
+	overflow: hidden;
+}
+html[data-ds] .login-page .login-container .login-form { background: var(--lg-card) !important; }
+/* 卡片顶部一条青蓝渐变高光 */
+.login-page .login-container .login-form::before {
+	content: "";
+	display: block;
+	height: 3px;
+	background: linear-gradient(90deg, rgba(34, 211, 238, 0) 0%, var(--lg-cyan) 50%, rgba(129, 140, 248, 0) 100%);
+}
+.login-page .login-container .login-form .brand {
+	display: flex !important;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--dc-sp-3);
+	margin: 0 !important;
+	padding: var(--dc-sp-6) var(--dc-sp-6) var(--dc-sp-2) !important;
+	background: none !important;
+	color: var(--lg-text) !important;
+}
+/* 卡片标题下方补一行小字（纯样式，不动模板）：跟参考站的“副标题”一个作用 */
+.login-page .login-container .login-form .brand::after {
+	content: "OpenWrt · LuCI 管理后台";
+	margin-top: -4px;
+	color: var(--lg-muted);
+	font-size: var(--dc-fs-sm);
+	letter-spacing: .08em;
+}
+.login-page .login-container .login-form .brand .icon {
+	width: 46px !important;
+	height: 46px !important;
+	margin: 0 !important;
+	padding: 6px;
+	box-sizing: border-box;
+	background: rgba(255, 255, 255, .94);
+	border-radius: 14px;
+	box-shadow: 0 0 0 1px rgba(34, 211, 238, .35), 0 0 28px -6px rgba(34, 211, 238, .55);
+}
+.login-page .login-container .login-form .brand .brand-text {
+	font-family: var(--dc-font) !important;
+	font-size: 21px !important;
+	font-weight: 750 !important;
+	letter-spacing: .01em !important;
+	background: linear-gradient(120deg, #ffffff 12%, var(--lg-cyan) 88%);
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	color: var(--lg-cyan) !important;
+}
+.login-page .login-container .login-form .form-login { width: 100% !important; padding: 0 var(--dc-sp-6) 0 !important; }
+.login-page .login-container .login-form .form-login .input-group { margin: 0 0 var(--dc-sp-3) !important; position: relative; }
+.login-page .login-container .login-form .form-login .input-group::before {
+	left: 14px !important;
+	top: 50% !important;
+	transform: translateY(-50%);
+	font-size: 1.05rem !important;
+	color: rgba(34, 211, 238, .75) !important;
+	z-index: 3;
+}
+.login-page .login-container .login-form .form-login .input-group input {
+	width: 100% !important;
+	min-height: 46px;
+	margin: 0 !important;
+	padding: 0 var(--dc-sp-4) 0 42px !important;
+	background: var(--lg-field) !important;
+	color: var(--lg-text) !important;
+	border: 1px solid var(--lg-field-line) !important;
+	border-radius: 11px !important;
+	font-size: var(--dc-fs-md) !important;
+	box-shadow: none !important;
+}
+.login-page .login-container .login-form .form-login .input-group input::placeholder { color: var(--lg-muted) !important; }
+.login-page .login-container .login-form .form-login .input-group input:hover { border-color: rgba(34, 211, 238, .35) !important; }
+.login-page .login-container .login-form .form-login .input-group input:focus {
+	background: rgba(34, 211, 238, .06) !important;
+	border-color: var(--lg-cyan) !important;
+	box-shadow: var(--lg-ring) !important;
+}
+.login-page .login-container .login-form .form-login .input-group .border { display: none !important; }
+.login-page .login-container .login-form .errorbox {
+	margin: 0 0 var(--dc-sp-4) !important;
+	padding: 9px var(--dc-sp-3) !important;
+	background: var(--dc-err-soft) !important;
+	border: 1px solid var(--dc-err-line) !important;
+	border-radius: var(--dc-r-sm) !important;
+	color: var(--dc-err) !important;
+	font-size: var(--dc-fs-sm) !important;
+	text-align: left !important;
+}
+.login-page .login-container .login-form .cbi-button-apply,
+.login-page .login-container .login-form .form-login .cbi-button-apply {
+	width: 100% !important;
+	min-height: 46px;
+	margin: var(--dc-sp-4) 0 0 !important;
+	padding: 0 var(--dc-sp-4) !important;
+	border: 0 !important;
+	border-radius: 11px !important;
+	background: linear-gradient(135deg, var(--lg-cyan) 0%, var(--lg-cyan-deep) 100%) !important;
+	color: #04222b !important;
+	font-size: var(--dc-fs-md) !important;
+	font-weight: 750 !important;
+	letter-spacing: .06em !important;
+	box-shadow: 0 12px 28px -12px rgba(34, 211, 238, .75) !important;
+}
+.login-page .login-container .login-form .form-login .cbi-button-apply:hover {
+	filter: brightness(1.07);
+	box-shadow: 0 16px 34px -12px rgba(34, 211, 238, .9) !important;
+}
+.login-page .login-container footer { display: none !important; }
+html[data-ds="dark"] .cbi-button-apply, html[data-ds="dark"] .cbi-button-save,
+html[data-ds="dark"] .cbi-button-action, html[data-ds="dark"] .cbi-button-positive,
+html[data-ds="dark"] .cbi-page-actions .cbi-button-save, html[data-ds="dark"] .cbi-page-actions .cbi-button-apply {
+	background: var(--dc-accent-fill) !important;
+	border-color: var(--dc-accent-fill) !important;
+	color: #fff !important;
+}
+.main .main-right .cbi-button-apply, .main .main-right .cbi-button-save,
+.main .main-right .cbi-button-action, .main .main-right .cbi-button-positive,
+.main .main-right .cbi-button-apply:hover, .main .main-right .cbi-button-save:hover {
+	background: #0d7fd6 !important;
+	border-color: #0d7fd6 !important;
+	color: #fff !important;
+}
+/* ==========================================================================
+ *  §12  Vue-Pure-admin 风格（2026-10-08 用户要求"像 Vue-Pure-admin，所有都要一样"）
+ *  ⚠️ 本节在最后 ⇒ 覆盖 §10/§11（两版 iKuai 过渡写法）。想彻底干净可以把 §10、§11 整段删掉。
+ *  下面每个数值都是**在它的官方 demo 上实测的**（Playwright 读 computedStyle，不是目测）：
+ *    · 侧栏 210px、**白底**、右缘 1px rgba(5,5,5,.06)；logo 区 48px
+ *    · 菜单项 **50px 高 / padding 0 20px / 14px**、文字 rgba(0,0,0,.6)；子项左缩进 40px
+ *    · 顶栏 **48px 白底**；下面是 **标签页栏 38px 白底**（它的招牌，底部 1px 阴影）
+ *    · 卡片 白底 / **圆角 4px / 1px #e4e7ed / 无阴影**；头 18px 20px + 下边框；体 20px
+ *    · 表格 14px；表头 #909399、行高 40px；格 #606266、行高 40px；线 #ebeef5；悬停 #f5f7fa
+ *    · 输入框/按钮 **32px 高、圆角 4px**、内描边 #dcdfe6
+ *    · 主色 **#409EFF**；页底 **#f2f3f5**；文字 #303133 / #606266 / #909399
+ *    · 字体栈 Helvetica Neue → PingFang SC → Microsoft YaHei
+ * ========================================================================== */
+:root {
+	--pa-primary: #409eff;
+	--pa-primary-soft: #ecf5ff;
+	--pa-page: #f2f3f5;
+	--pa-card-line: #e4e7ed;
+	--pa-text: #303133;
+	--pa-text-2: #606266;
+	--pa-text-3: #909399;
+	--pa-fill: #f5f7fa;
+	--pa-line: #ebeef5;
+	--dc-font: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+		"Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+	--dc-fs: 14px;
+	--dc-fs-sm: 13px;
+	--dc-fs-md: 16px;
+	--dc-text: var(--pa-text);
+	--dc-text-2: var(--pa-text-2);
+	--dc-muted: var(--pa-text-3);
+	--dc-bg: var(--pa-page);
+	--dc-surface: #ffffff;
+	--dc-border: var(--pa-card-line);
+	--dc-h: 32px;
+}
+.main .main-right .cbi-button-apply, .main .main-right .cbi-button-save,
+.main .main-right .cbi-button-action, .main .main-right .cbi-button-positive {
+	background: var(--pa-primary) !important; border-color: var(--pa-primary) !important; color: #fff !important;
+}
+/* （2026-10-13 废弃）原先深色下要给 logo 垫一层浅底，才看得见黑色的 argon.svg。
+   现在 logo 改成 <i class="brand-logo"> + mask + 主题色填充，本身就会随深浅模式变色，
+   所以这段 hack 已无用 —— 保留注释是为了以后翻旧账时知道它去哪了。 */
+/* 登录页：**深浅模式一个样**（深色辉光 + 玻璃卡），所以这里不再需要任何深色专用覆盖，
+   只要保证 .login-page 的底色不被后台的深色令牌改写即可（其余都走 §7 的 --lg-*） */
+html[data-ds="dark"] .login-page { background: var(--lg-bg); }
+html body .main .main-right .cbi-button:not(.cbi-button-apply):not(.cbi-button-save):not(.cbi-button-action):not(.cbi-button-positive) {
+	background: #fff !important;
+	color: var(--pa-text) !important;
+	border-color: #dcdfe6 !important;
+}
+ * ========================================================================== */
+html body,
+html body button, html body input, html body select, html body textarea,
+html body .cbi-input-text, html body .cbi-input-select, html body .cbi-input-password,
+html body .cbi-button, html body .btn, html body .table, html body .ifacebox,
+html body .cbi-value-title, html body .cbi-value-field, html body .cbi-value-description,
+html body .cbi-section, html body .cbi-map, html body .tabs, html body #tabmenu,
+html body #maincontent, html body .alert-message, html body .cbi-tooltip {
+	font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+		"Microsoft YaHei", "微软雅黑", Arial, sans-serif !important;
+}

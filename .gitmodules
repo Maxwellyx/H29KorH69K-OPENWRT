@@ -1,0 +1,6 @@
+[submodule "modem-pro"]
+	path = modem-pro
+	url = https://github.com/ouyangzq/modem-pro.git
+[submodule "luci-proto-modem-pro"]
+	path = luci-proto-modem-pro
+	url = https://github.com/ouyangzq/luci-proto-modem-pro.git

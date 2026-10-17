@@ -1,0 +1,203 @@
+--- a/drivers/staging/fbtft/fb_gc9307.c
++++ b/drivers/staging/fbtft/fb_gc9307.c
+@@ -0,0 +1,172 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * FB driver for the GC9307 LCD Controller (172x320)
++ * 
++ * Copyright (C) 2025 Fish
++ */
++
++#include <linux/bitops.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/interrupt.h>
++#include <linux/completion.h>
++#include <linux/module.h>
++#include <linux/of.h>
++
++#include <video/mipi_display.h>
++
++#include "fbtft.h"
++
++#define DRVNAME "fb_gc9307"
++
++#define MADCTL_MY BIT(7)
++#define MADCTL_MX BIT(6)
++#define MADCTL_MV BIT(5)
++#define MADCTL_BGR BIT(3)
++
++static int init_display(struct fbtft_par *par)
++{
++    par->fbtftops.reset(par);
++
++    write_reg(par, 0xfe);
++    write_reg(par, 0xef);
++
++    write_reg(par, 0x3a, 0x05); // 16bit/pixel (RGB565)
++
++    write_reg(par, 0x86, 0x98);
++    write_reg(par, 0x89, 0x03);
++    write_reg(par, 0x8b, 0x80);
++    write_reg(par, 0x8d, 0x33);
++    write_reg(par, 0x8e, 0x0f);
++
++    write_reg(par, 0xe8, 0x12, 0x00);
++
++    write_reg(par, 0xc3, 0x31);
++    write_reg(par, 0xc4, 0x00);
++    write_reg(par, 0xc9, 0x0f);
++
++    write_reg(par, 0xff, 0x62);
++
++    write_reg(par, 0x99, 0x3e);
++    write_reg(par, 0x9d, 0x4b);
++    write_reg(par, 0x98, 0x3e);
++    write_reg(par, 0x9c, 0x4b);
++
++    write_reg(par, 0xF0, 0x8a, 0x0c, 0x09, 0x08, 0x05, 0x2f);
++    write_reg(par, 0xF2, 0x8a, 0x0c, 0x09, 0x08, 0x06, 0x2f);
++    write_reg(par, 0xF1, 0x49, 0x8f, 0x6f, 0x2c, 0x31, 0xff);
++    write_reg(par, 0xF3, 0x46, 0x7f, 0x5f, 0x17, 0x19, 0xff);
++
++    write_reg(par, MIPI_DCS_EXIT_SLEEP_MODE);
++    mdelay(120);
++    write_reg(par, MIPI_DCS_SET_DISPLAY_ON);
++    mdelay(100);
++
++    return 0;
++}
++
++static int set_var(struct fbtft_par *par)
++{
++    u8 madctl = 0;
++
++    if (par->bgr)
++        madctl |= MADCTL_BGR;
++
++    switch (par->info->var.rotate) {
++    case 0:
++        madctl = 0x48; // MV | RGB (默认竖屏，正向)
++        break;
++    case 90:
++        madctl = 0x28; // 横屏右转
++        break;
++    case 180:
++        madctl = 0x88; // MY + MV + RGB (180度)
++        break;
++    case 270:
++        madctl  = 0xE8; // MX + MY + MV + RGB (横屏左转)
++        break;
++    default:
++        return -EINVAL;
++    }
++
++    write_reg(par, 0x36, madctl);
++    return 0;
++}
++
++static int blank(struct fbtft_par *par, bool on)
++{
++    if (on) {
++        write_reg(par, 0x28); // display off
++        mdelay(120);
++        write_reg(par, 0x10); // enter sleep
++    } else {
++        write_reg(par, 0x11); // sleep out
++        mdelay(120);
++        write_reg(par, 0x29); // display on
++    }
++    return 0;
++}
++
++static struct fbtft_display display = {
++    .regwidth = 8,
++    .width = 172,
++    .height = 320,
++    .gamma_num = 0,
++    .gamma_len = 0,
++    .gamma = NULL,
++    .fbtftops = {
++        .init_display = init_display,
++        .set_var = set_var,
++        .blank = blank,
++    },
++};
++
++/* SPI driver registration functions */
++static int gc9307_probe_spi(struct spi_device *spi)
++{
++    return fbtft_probe_common(&display, spi, NULL);
++}
++
++static void gc9307_remove_spi(struct spi_device *spi)
++{
++    struct fb_info *info = spi_get_drvdata(spi);
++    
++    fbtft_remove_common(&spi->dev, info);
++}
++
++static const struct of_device_id gc9307_of_match[] = {
++    { .compatible = "gc9307" },
++    { .compatible = "sitronix,gc9307" },
++    { },
++};
++MODULE_DEVICE_TABLE(of, gc9307_of_match);
++
++static const struct spi_device_id gc9307_spi_ids[] = {
++    { "gc9307", 0 },
++    { "sitronix,gc9307", 0 },
++    { }
++};
++MODULE_DEVICE_TABLE(spi, gc9307_spi_ids);
++
++static struct spi_driver gc9307_spi_driver = {
++    .driver = {
++        .name   = DRVNAME,
++        .owner  = THIS_MODULE,
++        .of_match_table = gc9307_of_match,
++    },
++    .id_table = gc9307_spi_ids,
++    .probe  = gc9307_probe_spi,
++    .remove = gc9307_remove_spi,
++};
++
++module_spi_driver(gc9307_spi_driver);
++
++MODULE_ALIAS("spi:" DRVNAME);
++MODULE_ALIAS("platform:" DRVNAME);
++MODULE_DESCRIPTION("FB driver for GC9307 LCD Controller (172x320)");
++MODULE_AUTHOR("Fish");
++MODULE_LICENSE("GPL");
++MODULE_VERSION("1.0");
++
+--- a/drivers/staging/fbtft/Kconfig
++++ b/drivers/staging/fbtft/Kconfig
+@@ -171,6 +171,16 @@ config FB_TFT_ST7789V
+ 	  displays with a resolution of up to 320x240 pixels.
+ 
+ 	  Say Y if you have such a display that utilizes this controller.
++
++config FB_TFT_GC9307
++	tristate "FB driver for the GC9307 LCD Controller"
++	depends on FB_TFT
++	help
++	  This enables generic framebuffer support for the GC9307
++	  display controller. The controller is intended for small color
++	  displays with a resolution of 172x320 pixels using SPI interface.
++
++	  Say Y if you have such a display that utilizes this controller.
+ 
+ config FB_TFT_TINYLCD
+ 	tristate "FB driver for tinylcd.com display"
+--- a/drivers/staging/fbtft/Makefile
++++ b/drivers/staging/fbtft/Makefile
+@@ -31,6 +31,7 @@ obj-$(CONFIG_FB_TFT_SSD1351)     += fb_ssd1351.o
+ obj-$(CONFIG_FB_TFT_ST7735R)     += fb_st7735r.o
+ obj-$(CONFIG_FB_TFT_ST7789V)     += fb_st7789v.o
++obj-$(CONFIG_FB_TFT_GC9307)      += fb_gc9307.o
+ obj-$(CONFIG_FB_TFT_TINYLCD)     += fb_tinylcd.o
+ obj-$(CONFIG_FB_TFT_TLS8204)     += fb_tls8204.o
+ obj-$(CONFIG_FB_TFT_UC1611)      += fb_uc1611.o 

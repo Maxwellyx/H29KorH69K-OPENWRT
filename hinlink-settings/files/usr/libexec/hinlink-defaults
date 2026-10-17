@@ -1,0 +1,67 @@
+#!/bin/sh
+#
+# hinlink-defaults —— Hinlink 设备的出厂默认值（可重复调用，幂等）
+#
+#   1) root 登录密码固定为 password（$1$ MD5-crypt：musl / dropbear / LuCI 都认）
+#   2) 无线：SSID = 设备树 model 名（**和主机名完全同一个来源**），
+#      加密 psk2，密码 password
+#
+# 用标记文件保证"只做一次"：之后用户自己改过的 SSID / 密码不会被覆盖。
+#
+# 调用点（都在 daocaoren 里，不改上游任何文件）：
+#   - /etc/init.d/hinlink-defaults   （每次启动调一次，做过就立刻退出）
+#   - /etc/uci-defaults/zzz-hinlink-settings（首次启动）
+#
+# 无线部分要求 /etc/config/wireless 已存在（由 mac80211 的 hotplug 在网卡
+# 出现时生成），没生成时直接返回、不做标记，留待下次调用重试。
+
+MARK_ROOT=/etc/.hinlink-rootpass-done
+MARK_WIFI=/etc/.hinlink-wifi-done
+
+# 设备树名：和 zzz-hinlink-settings 里主机名用的是同一段逻辑
+dt_name() {
+        m=""
+        [ -r /proc/device-tree/model ] && m="$(tr -d '\000' < /proc/device-tree/model)"
+        case "$m" in
+                *H69K*)    echo H69K ;;
+                *H29K*)    echo H29K ;;
+                *HT2*)     echo HT2 ;;
+                *F50-PRO*) echo F50-PRO ;;
+                *)         echo Hinlink ;;
+        esac
+}
+
+# ---------------- 1. root 密码 ----------------
+if [ ! -f "$MARK_ROOT" ] && [ -f /etc/shadow ]; then
+        if grep -q '^root:' /etc/shadow; then
+                cp -f /etc/shadow /etc/shadow.hinlink.bak 2>/dev/null
+                sed -i 's|^root:[^:]*:|root:$1$hinlink$jW7FenA3pe2/3rSMohZUQ0:|' /etc/shadow
+                touch "$MARK_ROOT"
+                logger -t hinlink-defaults "root 密码已设为出厂默认 password"
+        fi
+fi
+
+# ---------------- 2. 无线 SSID / 密码 ----------------
+if [ ! -f "$MARK_WIFI" ] && [ -f /etc/config/wireless ]; then
+        ssid="$(dt_name)"
+        n=0
+        for s in $(uci -q show wireless 2>/dev/null | sed -n 's/^\(wireless\.[^.=]*\)=wifi-iface$/\1/p'); do
+                [ "$(uci -q get "$s.mode")" = "ap" ] || continue
+                uci -q set "$s.ssid=$ssid"
+                uci -q set "$s.encryption=psk2"
+                uci -q set "$s.key=password"
+                n=$((n + 1))
+        done
+        if [ "$n" -gt 0 ]; then
+                sed -i '/^[[:space:]]*option disabled/d' /etc/config/wireless
+                uci -q commit wireless
+                touch "$MARK_WIFI"
+                logger -t hinlink-defaults "无线默认值：SSID=$ssid psk2/password（$n 个 AP 接口）"
+                # 已经跑起来的场合让它立即生效（没起来时是空操作）
+                if ubus -S call network.wireless status >/dev/null 2>&1; then
+                        wifi reload >/dev/null 2>&1 || true
+                fi
+        fi
+fi
+
+exit 0

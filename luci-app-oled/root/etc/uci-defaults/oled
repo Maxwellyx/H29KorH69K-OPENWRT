@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# 【OpenWrt 移植说明】
+#   1) 原版用 `[[ ... ]]`，这里改成 POSIX 的 `[ ... ]`。
+#   2) 原版 `[[ \`uci -q get oled.@oled[0].showmenu\` -eq 1 ]]`：showmenu 为空时
+#      `[ "" -eq 1 ]` 会报 integer expression expected —— 改成字符串比较。
+#   3) 原版 heredoc 用空格缩进 + `<<-EOF`（`<<-` 只剥 tab）—— 改成 tab。
+#   4) board_name = hinlink,opc-h69k 时写 /dev/i2c-5（OLED 挂在 i2c5 上，
+#      对应设备树里新加的 &i2c5 { status = "okay"; }）。其它机型保持 /dev/i2c-0 默认值。
+#
+uci_write_config() {
+	[ "$(uci -q get oled.@oled[0].showmenu)" = "1" ] && return
+	uci -q batch <<-EOF >/dev/null
+		set oled.@oled[0].showmenu="1"
+		set oled.@oled[0].enable="1"
+		set oled.@oled[0].path="$1"
+		set oled.@oled[0].rotate="$2"
+		set oled.@oled[0].netspeed="$3"
+		set oled.@oled[0].netsource="$4"
+		commit oled
+	EOF
+}
+
+[ -f /lib/functions/system.sh ] && . /lib/functions/system.sh
+
+case "$(board_name)" in
+hinlink,opc-h69k)
+	uci_write_config '/dev/i2c-5' 1 1 eth0
+	;;
+esac
+
+uci -q batch <<-EOF >/dev/null
+	delete ucitrack.@oled[-1]
+	add ucitrack oled
+	set ucitrack.@oled[-1].init=oled
+	commit ucitrack
+EOF
+
+[ -f /etc/crontabs/root ] && \
+	sed -e "/\/etc\/init\.d\/oled/d" -i /etc/crontabs/root && \
+	/etc/init.d/cron reload 2>/dev/null
+
+rm -rf /tmp/luci-*
+exit 0

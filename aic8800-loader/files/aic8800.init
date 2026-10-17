@@ -1,0 +1,42 @@
+#!/bin/sh /etc/rc.common
+# aic8800 SDIO WiFi：启动完成后（后台）按 lede 的次序加载 bsp → fdrv
+# 日志：/etc/aic8800-load.log
+START=95
+STOP=05
+
+LOG=/etc/aic8800-load.log
+
+start() {
+	(
+		sleep 8
+		{
+			echo "===================== $(date) aic8800 加载开始 ====================="
+			echo "--- 1. SDIO 卡有没有枚举出来（关键看 mmc2）---"
+			ls -d /sys/class/mmc_host/mmc2 2>&1
+			for d in /sys/class/mmc_host/mmc2/*/; do [ -d "$d" ] && echo "  卡: $d"; done
+			echo "  sdio 设备: $(ls /sys/bus/sdio/devices/ 2>&1)"
+			echo "--- 2. 最近的 mmc 相关内核消息 ---"
+			dmesg | grep -iE 'mmc2|sdio' | tail -15
+			echo "--- 3. modprobe aic8800_bsp ---"
+			modprobe aic8800_bsp 2>&1
+			echo "  rc=$?"
+			sleep 2
+			echo "--- 4. modprobe aic8800_fdrv ---"
+			modprobe aic8800_fdrv 2>&1
+			echo "  rc=$?"
+			sleep 3
+			echo "--- 5. lsmod ---"
+			lsmod | grep -i aic
+			echo "--- 6. 网络接口 ---"
+			ls /sys/class/net/
+			echo "--- 7. dmesg 尾部 30 行 ---"
+			dmesg | tail -30
+			echo "===================== 加载结束 ====================="
+		} >> $LOG 2>&1
+	) &
+}
+
+stop() {
+	rmmod aic8800_fdrv 2>/dev/null
+	rmmod aic8800_bsp 2>/dev/null
+}

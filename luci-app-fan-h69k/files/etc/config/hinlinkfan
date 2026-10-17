@@ -1,0 +1,22 @@
+# H69K 风扇控制配置（luci-app-hinlinkfan）
+#
+# mode          kernel  内核设备树温控（默认，推荐）
+#               manual  自定义曲线（用户态守护进程接管，关闭时自动交还内核）
+#               off     强制停转（放弃风扇散热保护，仅调试用）
+#               full    全速运转
+# curve         自定义曲线：温度(℃):转速(0-255)，按温度升序，最多 8 档
+# tick          采样周期（秒）
+# hysteresis    降档回差（℃），避免在阈值上反复起停
+# ramp          每个采样周期最多降多少 PWM（升温是立即响应的）
+# preset_applied 记录曲线来自哪个预设，避免重复套用预设覆盖手工曲线
+
+config global 'global'
+	option mode 'kernel'
+	option preset_applied 'balanced'
+	list curve '45:90'
+	list curve '55:120'
+	list curve '65:165'
+	list curve '75:210'
+	option tick '2'
+	option hysteresis '4'
+	option ramp '32'

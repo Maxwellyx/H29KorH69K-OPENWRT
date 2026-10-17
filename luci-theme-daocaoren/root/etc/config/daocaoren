@@ -1,0 +1,18 @@
+# daocaoren 主题的外观配置（由 themes/daocaoren/header*.htm 读取，写进页面 :root）
+#
+# 这个文件是包的 conffile：升级 ipk 时你改过的值会被保留。
+# 想让后台「系统 → 主题外观」重新生成默认值：把下面这一段删掉再保存一次即可。
+#
+#   primary / dark_primary   主题色（浅色模式 / 深色模式各一个；深色变体会自动压暗得到）
+#   blur / blur_dark         毛玻璃模糊半径（px）
+#   transparency / *_dark    面板不透明度 0~1（越大越不透明）
+#   mode                     深浅模式：normal = 跟随系统、dark = 永远深色
+
+config global 'global'
+	option primary '#3b82f6'
+	option dark_primary '#2f6bd8'
+	option blur '10'
+	option blur_dark '10'
+	option transparency '0.5'
+	option transparency_dark '0.5'
+	option mode 'normal'

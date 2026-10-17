@@ -1,0 +1,55 @@
+#!/bin/sh /etc/rc.common
+#
+# H69K 风扇控制服务（luci-app-hinlinkfan）
+#
+# 本脚本只负责把 /usr/sbin/hinlinkfan-daemon 交给 procd 托管并让它自愈；
+# 内核温控 / 自定义曲线 / 强制停转 / 全速 四种模式的调度都在守护进程里，
+# 详见 /usr/sbin/hinlinkfan-daemon 头部说明。
+#
+# 为什么必须常驻：早期版本"关闭时写 pwm1_enable=1"（应为 2），
+# 导致关掉用户态控制后内核设备树的过热保护永久失效。现在守护进程无论
+# 哪种模式都在跑，退出/被停止时也一定会把 pwm1_enable 写回 2。
+
+START=95
+STOP=05
+USE_PROCD=1
+
+PROG=/usr/sbin/hinlinkfan-daemon
+COMMON=/usr/lib/hinlinkfan/common.sh
+
+start_service() {
+	if [ ! -x "$PROG" ]; then
+		logger -t hinlinkfan "找不到 $PROG，回退到内核温控"
+		[ -r "$COMMON" ] && {
+			. "$COMMON"
+			hinlinkfan_set_pwm_enable 2
+		}
+		return 1
+	fi
+
+	procd_open_instance
+	procd_set_param command "$PROG"
+	# 崩溃自愈：3600 秒窗口内最多重试 5 次，避免坏配置下无限重启刷日志
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+stop_service() {
+	# 守护进程收到 SIGTERM 后会自行把控制权交还内核温控
+	logger -t hinlinkfan "服务正在停止（风扇将交还内核温控）"
+}
+
+service_stopped() {
+	# 兜底：即使守护进程被 SIGKILL，也要保证内核温控重新生效
+	[ -r "$COMMON" ] && {
+		. "$COMMON"
+		hinlinkfan_set_pwm_enable 2 >/dev/null 2>&1
+	}
+}
+
+reload_service() {
+	# 配置改动不需要重启：守护进程每 tick 重读 UCI
+	logger -t hinlinkfan "配置已重载（守护进程每 ${TICK:-2}s 自动生效）"
+}

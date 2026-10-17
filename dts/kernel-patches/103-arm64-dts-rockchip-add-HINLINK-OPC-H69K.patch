@@ -1,0 +1,275 @@
+diff -ruN a/arch/arm64/boot/dts/rockchip/Makefile b/arch/arm64/boot/dts/rockchip/Makefile
+--- a/arch/arm64/boot/dts/rockchip/Makefile
++++ b/arch/arm64/boot/dts/rockchip/Makefile
+@@ -141,6 +141,7 @@
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-nanopi-r5c.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-nanopi-r5s.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-odroid-m1.dtb
++dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-opc-h69k.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-photonicat.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-qnap-ts433.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-radxa-e25.dtb
+diff -ruN a/arch/arm64/boot/dts/rockchip/rk3568-opc-h69k.dts b/arch/arm64/boot/dts/rockchip/rk3568-opc-h69k.dts
+--- a/arch/arm64/boot/dts/rockchip/rk3568-opc-h69k.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3568-opc-h69k.dts
+@@ -0,0 +1,260 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++// Copyright (c) 2023 AmadeusGhost <amadeus@jmu.edu.cn>
++
++/dts-v1/;
++
++#include "rk3568-hinlink-opc.dtsi"
++
++/ {
++	model = "HINLINK OPC-H69K Board";
++	compatible = "hinlink,opc-h69k", "rockchip,rk3568";
++
++	aliases {
++		ethernet0 = &gmac1;
++	};
++
++	//modem_reset: modem-reset {
++	//	status = "okay";
++	//	compatible = "daocaoren,modem-switch";
++	//	pinctrl-names = "default";
++	//	pinctrl-0 = <&modem_reset_pin>;
++	//	// 这里保持 GPIO_ACTIVE_LOW 不变，因为你的硬件特性就是低电平有效
++	//	gpio = <&gpio0 RK_PC0 GPIO_ACTIVE_LOW>;
++	//	// 【关键修改】改为 0
++	//	// 逻辑 0 -> 内核看到 ACTIVE_LOW 标志 -> 输出物理高电平 -> 硬件有电
++	//	gpio-init-level = <1>; 
++	//	output-high; 
++	//};
++
++	//gpio-export {
++	//	status="okay";
++	//	compatible = "neardi,gpio-export";
++	//	pinctrl-names = "default";
++	//	neardi,gpio-name = "gpio_export";
++	//	/**
++	//	* below gpio's name were based on neardi ld160 board, please see the  declarelation of board.
++	//	*/
++	//	neardi,gpio-export =  <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
++	//};
++
++	fan: pwm-fan {
++		compatible = "pwm-fan";
++		cooling-levels = <0 90 120 165 210 255>;
++		#cooling-cells = <2>;
++		pwms = <&pwm0 0 50000 0>;
++	};
++
++	vcc5v0_ahci: vcc5v0-ahci {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio0 RK_PC5 GPIO_ACTIVE_HIGH>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&sata_pwr_en>;
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		regulator-name = "vcc5v0_ahci";
++		vin-supply = <&vcc5v0_sys>;
++	};
++
++	sdio_pwrseq: sdio-pwrseq {
++		compatible = "mmc-pwrseq-simple";
++		clocks = <&rk809 1>;
++		clock-names = "ext_clock";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wifi_enable>;
++		post-power-on-delay-ms = <300>;
++		power-off-delay-us = <5000000>;
++		reset-gpios = <
++			&gpio3 RK_PA0 GPIO_ACTIVE_LOW
++		>;
++	};
++
++};
++
++&tsadc {
++	status = "okay";
++	rockchip,hw-tshut-mode = <0>; // 0: 温度达到阈值时关闭系统
++	// rockchip,hw-tshut-polarity = <1>; // 1: 高电平有效
++};
++
++
++/* H69K fan thermal: 4 steps 45/55/65/75C, hysteresis 4C, active.
++ * cpu_alert0/1 (70/75C) and cpu_crit (95C) come from rk3568.dtsi.
++ * cooling-maps must NOT be named map0/map1 - the base dtsi already has
++ * those names and dtc merges same-name nodes silently. */
++&cpu_thermal {
++	trips {
++		fan_trip1: fan-trip1 {
++			temperature = <45000>;
++			hysteresis = <4000>;
++			type = "active";
++		};
++		fan_trip2: fan-trip2 {
++			temperature = <55000>;
++			hysteresis = <4000>;
++			type = "active";
++		};
++		fan_trip3: fan-trip3 {
++			temperature = <65000>;
++			hysteresis = <4000>;
++			type = "active";
++		};
++		fan_trip4: fan-trip4 {
++			temperature = <75000>;
++			hysteresis = <4000>;
++			type = "active";
++		};
++	};
++
++	cooling-maps {
++		fan-map1 {
++			trip = <&fan_trip1>;
++			cooling-device = <&fan 0 1>;
++		};
++		fan-map2 {
++			trip = <&fan_trip2>;
++			cooling-device = <&fan 1 2>;
++		};
++		fan-map3 {
++			trip = <&fan_trip3>;
++			cooling-device = <&fan 2 3>;
++		};
++		fan-map4 {
++			trip = <&fan_trip4>;
++			cooling-device = <&fan 3 4>;
++		};
++	};
++};
++
++
++&gmac1 {
++	assigned-clocks = <&cru SCLK_GMAC1_RX_TX>, <&cru SCLK_GMAC1>;
++	assigned-clock-parents = <&cru SCLK_GMAC1_RGMII_SPEED>;
++	assigned-clock-rates = <0>, <125000000>;
++	clock_in_out = "output";
++	phy-mode = "rgmii-id";
++	pinctrl-names = "default";
++	pinctrl-0 = <&gmac1m1_miim
++		     &gmac1m1_tx_bus2
++		     &gmac1m1_rx_bus2
++		     &gmac1m1_rgmii_clk
++		     &gmac1m1_rgmii_bus>;
++	snps,reset-gpio = <&gpio1 RK_PB0 GPIO_ACTIVE_LOW>;
++	snps,reset-active-low;
++	snps,reset-delays-us = <0 20000 100000>;
++	tx_delay = <0x4f>;
++	rx_delay = <0x26>;
++	phy-handle = <&rgmii_phy1>;
++	status = "okay";
++};
++
++&mdio1 {
++	rgmii_phy1: ethernet-phy@0 {
++		compatible = "ethernet-phy-ieee802.3-c22";
++		reg = <0x0>;
++	};
++};
++
++
++
++&pinctrl {
++    
++	pcie {
++
++		// 新增：pcie3x1 复位引脚配置
++		
++        // 新增：pcie3x2 复位引脚配置
++    };
++
++	//modem {
++	//	modem_reset_pin: modem-reset-pin {
++	//		rockchip,pins = <0 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
++	//	};
++	//};
++
++	sata {
++		sata_pwr_en: sata-pwr-en {
++			rockchip,pins = <0 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++	};
++
++	sdio-pwrseq {
++		wifi_enable: wifi-enable {
++			rockchip,pins = <3 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++
++		wifi_host_wake: wifi-host-wake {
++			rockchip,pins = <3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_down>;
++		};
++	};
++};
++
++&pwm0 {
++	status = "okay";
++};
++
++&sata0 {
++	target-supply = <&vcc5v0_ahci>;
++};
++
++
++&sdmmc2 {
++	bus-width = <4>;
++	disable-wp;
++	cap-sd-highspeed;
++	cap-sdio-irq;
++	keep-power-in-suspend;
++	mmc-pwrseq = <&sdio_pwrseq>;
++	non-removable;
++	pinctrl-names = "default";
++	pinctrl-0 = <&sdmmc2m0_bus4 &sdmmc2m0_cmd &sdmmc2m0_clk>;
++	sd-uhs-sdr12;
++	sd-uhs-sdr25;
++	sd-uhs-sdr50;
++	sd-uhs-sdr104;
++	vmmc-supply = <&vcc3v3_sys>;
++	vqmmc-supply = <&vcc_1v8>;
++	status = "okay";
++
++	sdio_wifi@0 {
++		reg = <0>;
++		interrupt-parent = <&gpio3>;
++		interrupts = <RK_PD5 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "host-wake";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wifi_host_wake>;
++	};
++
++};
++
++&uart0 {
++    status = "disabled";
++};
++
++/* 新增：OLED(ssd1306) 挂在 i2c5 上，内核要出 /dev/i2c-5 */
++&i2c5 {
++	status = "okay";
++};
++
++
++
++
++// 1. 给&pcie3x1和&pcie3x2添加枚举超时延长配置（6.1+内核支持）
++
++/* ==== 2026-10-15 对齐"能用的那版固件"（厂商 dtsi 风格）====
++ * 上游 rk3568-hinlink-opc.dtsi 把 i2c2 打开了，而且用的是 i2c2m1：
++ *   i2c2m1_scl = gpio0 RK_PC4 = PCIe 3.3V 使能脚
++ *   i2c2m1_sda = gpio0 RK_PC5 = SATA 5V 使能脚
++ * 厂商 dtsi 里根本没有 &i2c2（保持 disabled），本板也没有任何 i2c2 器件，
++ * 所以这里关掉它，避免和 PCIe 供电抢引脚。
++ */
++&i2c2 {
++	/delete-property/ pinctrl-names;
++	/delete-property/ pinctrl-0;
++	status = "disabled";
++};
++
++/* 厂商那版给 PCIe 3.3V 加了 5ms 上电延时，这里保持一致 */
++&vcc3v3_pi6c_05 {
++	startup-delay-us = <5000>;
++};

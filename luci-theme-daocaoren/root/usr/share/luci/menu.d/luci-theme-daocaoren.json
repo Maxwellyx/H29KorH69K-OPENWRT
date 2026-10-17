@@ -1,0 +1,10 @@
+{
+	"admin/system/theme": {
+		"title": "主题外观",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "theme/colors"
+		}
+	}
+}

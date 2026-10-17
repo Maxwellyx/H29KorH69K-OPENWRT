@@ -1,0 +1,13 @@
+{
+	"luci-theme-daocaoren": {
+		"description": "daocaoren 主题外观（主题色 / 毛玻璃 / 深浅模式）",
+		"read": {
+			"uci": [ "daocaoren" ],
+			"file": { "/etc/config/daocaoren": [ "read" ] }
+		},
+		"write": {
+			"uci": [ "daocaoren" ],
+			"file": { "/etc/config/daocaoren": [ "write" ] }
+		}
+	}
+}

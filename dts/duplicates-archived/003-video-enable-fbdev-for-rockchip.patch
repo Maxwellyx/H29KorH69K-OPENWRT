@@ -1,0 +1,22 @@
+diff --git a/package/kernel/linux/modules/video.mk b/package/kernel/linux/modules/video.mk
+index 86c4ffebf6..d809d6c364 100644
+--- a/package/kernel/linux/modules/video.mk
++++ b/package/kernel/linux/modules/video.mk
+@@ -8,7 +8,7 @@
+ 
+ VIDEO_MENU:=Video Support
+ 
+-FBDEV_TARGETS:=@(TARGET_bcm27xx||TARGET_sunxi||TARGET_x86_legacy||TARGET_x86_geode)
++FBDEV_TARGETS:=@(TARGET_bcm27xx||TARGET_sunxi||TARGET_x86_legacy||TARGET_x86_geode||TARGET_rockchip)
+ 
+ #
+ # Media
+@@ -260,7 +260,7 @@ define KernelPackage/fb-tft
+   SUBMENU:=$(VIDEO_MENU)
+   TITLE:=Support for small TFT LCD display modules
+   DEPENDS:= \
+-	  @GPIO_SUPPORT @TARGET_bcm27xx +kmod-backlight \
++	  @GPIO_SUPPORT @(TARGET_bcm27xx||TARGET_rockchip) +kmod-backlight \
+ 	  +kmod-fb +kmod-fb-sys-fops +kmod-fb-sys-ram +kmod-spi-bitbang
+   KCONFIG:= \
+        CONFIG_FB_BACKLIGHT=y \

@@ -1,0 +1,31 @@
+#!/bin/sh
+# /etc/hotplug.d/ieee80211/50-hinlink-menu-refresh
+#
+# 为什么需要它：
+#   /etc/init.d/boot 第 46-48 行会跑 `/sbin/wifi config`，但那是在 `/sbin/kmodloader`
+#   **之前**（注释原文："update wifi config before additional ieee80211 hotplug events"）。
+#   那一刻 wifi 内核模块还没加载 ⇒ 系统里没有任何 phy ⇒ 生成的 /etc/config/wireless
+#   里**没有 wifi-device**。
+#
+#   而 LuCI 的"无线"菜单项（/usr/share/luci/menu.d/luci-mod-network.json）的显示条件是：
+#       "depends": { "uci": { "wireless": { "@wifi-device": true } } }
+#   ⇒ 刷完固件后**第一次打开 LuCI** 时如果 phy 还没就绪，LuCI 就会把"没有无线"的菜单
+#   缓存到 /tmp/luci-indexcache.*.json ⇒ 之后**无线菜单一直不出现**（F5 也没用，
+#   因为缓存的是服务端菜单），直到重启或手动清缓存。
+#
+#   upstream 的 10-wifi-detect 会在 phy 热插拔时补上 radio0，本脚本排在它之后（50 > 10），
+#   所以在"无线配置已经补好"的这个时刻把 LuCI 的菜单缓存清掉，让它重建一次。
+
+[ "$ACTION" = "add" ] || exit 0
+
+# 兜底：万一 upstream 的探测没跑成功，这里再补一次
+if [ -f /etc/board.json ] && [ -d /sys/class/ieee80211/phy0 ]; then
+	if ! grep -q 'config wifi-device' /etc/config/wireless 2>/dev/null; then
+		/sbin/wifi config 2>/dev/null
+	fi
+fi
+
+rm -f /tmp/luci-indexcache* 2>/dev/null
+rm -rf /tmp/luci-modulecache 2>/dev/null
+
+exit 0

@@ -1,0 +1,64 @@
+﻿== scp ==
+  tftdisplay_2.20-24_aarch64_generic.ipk -> 
+  luci-app-modemd-pro_0.2.255-1_aarch64_generic.ipk -> 
+  modemd-pro_0.2.255-1_aarch64_generic.ipk -> 
+== remote ==
++ opkg install /tmp/tftdisplay_2.20-24_aarch64_generic.ipk /tmp/modemd-pro_0.2.255-1_aarch64_generic.ipk /tmp/luci-app-modemd-pro_0.2.255-1_aarch64_generic.ipk
++ tail -20
++ set +x
+  鏈嶅姟鎺у埗锛?鍚姩 / 鍋滄 / 閲嶅惎 / 寮€鏈鸿嚜鍚?  澶氳瑷€锛?  椤甸潰鑷甫涓?鑻辫〃锛堟寜 luci.main.lang 鎴栨祻瑙堝櫒璇█锛夛紱鑿滃崟鏍囬宸叉敼涓虹畝浣撲腑鏂?  涓や唬 LuCI 閮芥敮鎸侊細Lua LuCI 鐢?/usr/lib/lua/luci/controller/modemd.lua锛?                   JS  LuCI 鐢?/usr/share/luci/menu.d/luci-app-modemd.json
+  UI 绫诲瀷锛? ucode 鐗?LuCI锛氬凡绉婚櫎 Lua 瑙嗗浘锛堝畠浼氳鍏煎妗ヤ紭鍏堟覆鏌撳苟鎶?modemdUIURL nil锛夛紝鍙敤 JS 瑙嗗浘
+  娌＄湅鍒拌彍鍗曪細鍒锋柊娴忚鍣紙Ctrl+F5锛夋垨閫€鍑?LuCI 閲嶆柊鐧诲綍涓€娆?  鍓嶆彁锛?     闇€鍏堝畨瑁?modemd 鏈綋锛坥pkg install modemd-pro_*.ipk锛夊苟鍚姩鏈嶅姟
+
+  浣滆€咃細      椹笂鏈夋埧   QQ: 168620188   閭: 168620188@qq.com
+  鑿滃崟鍥炬爣锛? 涓嶆敼鍐欎富棰樻牱寮忚〃锛堝浘鏍囧彧鍦ㄣ€?G缁堢銆嶉〉闈㈤噷锛?  鎮诞缁勪欢锛? 宸插鐞?4 / 4 涓?LuCI 涓婚妯℃澘
+  ACL/rpcd锛? ACL 鏈彉锛氭病鍔?rpcd锛堜細璇濅笉鍙楀奖鍝嶏級
+  鏀瑰悕璇存槑锛? 鏈寘鍘熷悕 luci-app-modemd锛?026-10-01 鏀瑰悕锛夛紱瀹堟姢杩涚▼鍖呭師鍚?modemd锛?026-10-02 鏀瑰悕涓?modemd-pro锛?Collected errors:
+ * resolve_conffiles: Existing conffile /etc/modemd/config.toml is different from the conffile in the new package. The new conffile will be placed at /etc/modemd/config.toml-opkg.
+Upgrading modemd-pro on root from 0.2.209-1 to 0.2.255-1...
+Upgrading luci-app-modemd-pro on root from 0.2.209-1 to 0.2.255-1...
+Configuring tftdisplay.
+Configuring modemd-pro.
+Configuring luci-app-modemd-pro.
+== versions ==
+luci-app-modemd-pro - 0.2.255-1
+modemd-pro - 0.2.255-1
+tftdisplay - 2.20-24
+== init ==
+-rwxr-xr-x    1 root     root           835 Oct  7 18:19 /etc/init.d/tftdisplay
+== wait modemd http ==
+api: {"code":0,"data":{"version":"0.2.255-1","go":"go1.27.0","platform":"linux/arm64","luci_auth":true},"msg":"ok"}
+== proc ==
+18168 root     1240m S    /usr/bin/modemd -config /etc/modemd/config.toml
+18355 root     11028 S    /usr/bin/tftdisplay
+== backlight ==
+255
+255
+0
+== logread ==
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: [batt]   in_voltage1_raw        raw=1019 (div:mV) 2:896 3:1343 4:1791 5:2239 6:2687 8:3582 10:4478 11:4926 16:7165
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: [batt]   in_voltage2_raw        raw=617 (div:mV) 2:542 3:813 4:1085 5:1356 6:1627 8:2169 10:2711 11:2983 16:4338
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: [batt]   in_voltage3_raw        raw=665 (div:mV) 2:584 3:877 4:1169 5:1461 6:1753 8:2338 10:2922 11:3215 16:4676
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: [batt] 褰撳墠璇绘暟锛歳aw=1019 mv=-1 pct=-1 chg=0
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: tftdisplay: 鎭睆 = 180000 姣鏃犳搷浣滐紙榛樿 180000 = 3 鍒嗛挓锛汿FT_IDLE_OFF_MS 鍙敼锛? = 鍏筹級
+Wed Oct  7 18:20:54 2026 daemon.err tftdisplay[18079]: [ERROR] export_gpio failed: path=/sys/class/gpio/export, errno=16, reason=Resource busy
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: tftdisplay: ws://127.0.0.1:9527/display/ws (enabled=1, user=-)
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: tftdisplay: 绔彛 9527 鍙栬嚜 modem 閰嶇疆 /etc/modemd/config.toml 鐨?[server] listen
+Wed Oct  7 18:20:54 2026 daemon.info tftdisplay[18079]: tftdisplay ws: 杩炰笉涓?modem 127.0.0.1:9527
+Wed Oct  7 18:20:54 2026 daemon.err procd: Failed to remove pidfile: /var/run/tftdisplay.pid: No such file or directory
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt] power_supply: 娌℃湁锛?sys/class/power_supply 閲屾病鏈夊甫 capacity 鐨勭數婧愶級
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt] ADC 鍒嗗帇姣旇嚜鍔ㄥ垽瀹氬け璐ワ細鍊欓€?6 8 閮借惤鍦?2500..4400 mV锛堟棤娉曞敮涓€纭畾锛夛紱璇峰湪 /etc/tftdisplay.battery 閲屽啓涓€琛?div=N锛圢 瑙佷笂闈㈢殑鍊欓€夋棩蹇楋級
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt] 鐢熸晥锛氭潵婧?鏃?range=2500..4400mV curve=3400..4200mV chg=4180mV conf=/etc/tftdisplay.battery
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt] ADC 鍊欓€夎〃锛坉iv:mV锛岄€変竴涓惤鍦?2500..4400 mV 鐨?div 鍐欒繘 /etc/tftdisplay.battery锛夛細
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt]   in_voltage0_raw        raw=1019 (div:mV) 2:896 3:1343 4:1791 5:2239 6:2687 8:3582 10:4478 11:4926 16:7165
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt]   in_voltage1_raw        raw=1019 (div:mV) 2:896 3:1343 4:1791 5:2239 6:2687 8:3582 10:4478 11:4926 16:7165
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt]   in_voltage2_raw        raw=617 (div:mV) 2:542 3:813 4:1085 5:1356 6:1627 8:2169 10:2711 11:2983 16:4338
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt]   in_voltage3_raw        raw=665 (div:mV) 2:584 3:877 4:1169 5:1461 6:1753 8:2338 10:2922 11:3215 16:4676
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: [batt] 褰撳墠璇绘暟锛歳aw=1019 mv=-1 pct=-1 chg=0
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: tftdisplay: 鎭睆 = 180000 姣鏃犳搷浣滐紙榛樿 180000 = 3 鍒嗛挓锛汿FT_IDLE_OFF_MS 鍙敼锛? = 鍏筹級
+Wed Oct  7 18:20:55 2026 daemon.err tftdisplay[18355]: [ERROR] export_gpio failed: path=/sys/class/gpio/export, errno=16, reason=Resource busy
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: tftdisplay: ws://127.0.0.1:9527/display/ws (enabled=1, user=-)
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: tftdisplay: 绔彛 9527 鍙栬嚜 modem 閰嶇疆 /etc/modemd/config.toml 鐨?[server] listen
+Wed Oct  7 18:20:55 2026 daemon.info tftdisplay[18355]: tftdisplay ws: 杩炰笉涓?modem 127.0.0.1:9527
+Wed Oct  7 18:21:10 2026 daemon.info tftdisplay[18355]: tftdisplay ws: 宸茶繛鎺?== fb shot ==
+-rw-r--r--    1 root     root        110080 Oct  7 18:21 /tmp/shot.raw

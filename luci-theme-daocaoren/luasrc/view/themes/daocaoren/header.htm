@@ -1,0 +1,285 @@
+<%#
+	Argon is a clean HTML5 theme for LuCI. It is based on luci-theme-material Argon Template
+
+	luci-theme-argon
+	Copyright 2020 Jerrykuku <jerrykuku@qq.com>
+
+	Have a bug? Please create an issue here on GitHub!
+	https://github.com/jerrykuku/luci-theme-argon/issues
+
+	luci-theme-material:
+	Copyright 2015 Lutty Yang <lutty@wcan.in>
+
+	Argon Theme
+	https://demos.creative-tim.com/argon-dashboard/index.html
+
+	Licensed to the public under the Apache License 2.0
+-%>
+
+<%
+	local sys = require "luci.sys"
+	local util = require "luci.util"
+	local http = require "luci.http"
+	local disp = require "luci.dispatcher"
+	local ver = require "luci.version"
+
+	local boardinfo = util.ubus("system", "board")
+
+	local node = disp.context.dispatched
+
+	local fs = require "nixio.fs"
+	local nutil = require "nixio.util"
+	local uci = require 'luci.model.uci'.cursor()
+
+	-- send as HTML5
+	http.prepare_content("text/html")
+
+	math.randomseed(os.time())
+
+	-- Custom settings
+	local mode = 'normal'
+	local dark_css = fs.readfile('/www/luci-static/daocaoren/css/dark.css')
+	local bar_color = '#5e72e4'
+	local primary, dark_primary, blur_radius, blur_radius_dark, blur_opacity
+	if fs.access('/etc/config/daocaoren') then
+		primary = uci:get_first('daocaoren', 'global', 'primary')
+		dark_primary = uci:get_first('daocaoren', 'global', 'dark_primary')
+		blur_radius = uci:get_first('daocaoren', 'global', 'blur')
+		blur_radius_dark = uci:get_first('daocaoren', 'global', 'blur_dark')
+		blur_opacity = uci:get_first('daocaoren', 'global', 'transparency')
+		blur_opacity_dark = uci:get_first('daocaoren', 'global', 'transparency_dark')
+		mode = uci:get_first('daocaoren', 'global', 'mode')
+		bar_color = mode == 'dark' and dark_primary or primary
+	end
+
+	-- Mode label
+	local mode_label = '深浅模式：跟随系统'
+	if mode == 'light' then
+		mode_label = '深浅模式：强制浅色'
+	elseif mode == 'dark' then
+		mode_label = '深浅模式：强制深色'
+	end
+
+	-- Brand name
+	local brand_name = boardinfo.hostname or "?"
+
+	-- 静态资源版本号（用文件大小，改完样式不用手动改版本）
+	local function asset_ver(p)
+		local st = fs.stat(p)
+		return st and st.size or 1
+	end
+-%>
+<!DOCTYPE html>
+<html lang="<%=luci.i18n.context.lang%>" data-dc-mode="<%=mode%>">
+
+<head>
+	<meta charset="utf-8">
+	<title>
+		<%=striptags( (boardinfo.hostname or "?") .. ( (node and node.title) and ' - ' .. translate(node.title) or '')) %>
+		- LuCI</title>
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+	<meta name="format-detection" content="telephone=no, email=no" />
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="x5-fullscreen" content="true">
+	<meta name="full-screen" content="yes">
+	<meta name="x5-page-mode" content="app">
+	<meta name="browsermode" content="application">
+	<meta name="msapplication-tap-highlight" content="no">
+	<meta name="msapplication-TileColor" content="<%=bar_color%>">
+	<meta name="application-name" content="<%=striptags( (boardinfo.hostname or "?") ) %> - LuCI">
+	<meta name="apple-mobile-web-app-title" content="<%=striptags( (boardinfo.hostname or "?") ) %> - LuCI">
+	<link rel="apple-touch-icon" sizes="60x60" href="<%=media%>/icon/apple-icon-60x60.png">
+	<link rel="apple-touch-icon" sizes="72x72" href="<%=media%>/icon/apple-icon-72x72.png">
+	<link rel="apple-touch-icon" sizes="144x144" href="<%=media%>/icon/apple-icon-144x144.png">
+	<link rel="icon" type="image/png" sizes="192x192" href="<%=media%>/icon/android-icon-192x192.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="<%=media%>/icon/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="96x96" href="<%=media%>/icon/favicon-96x96.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="<%=media%>/icon/favicon-16x16.png">
+	<link rel="manifest" href="<%=media%>/icon/manifest.json"  crossorigin="use-credentials">
+	<meta name="msapplication-TileColor" content="<%=bar_color%>">
+	<meta name="msapplication-TileImage" content="<%=media%>/icon/ms-icon-144x144.png">
+	<meta name="theme-color" content="<%=bar_color%>">
+	<link rel="stylesheet" href="<%=media%>/css/cascade.css?v=<%=asset_ver('/www/luci-static/daocaoren/css/cascade.css')%>">
+	<style title="text/css">
+		<% if mode == 'normal' then %>
+			@media (prefers-color-scheme: dark) {
+				<%=dark_css%>
+			}
+		<% elseif mode == 'dark' then %>
+			<%=dark_css%>
+		<% end -%>
+		<% if fs.access('/etc/config/daocaoren') then %>
+		:root {
+			--primary: <%=primary%>;
+			--dark-primary: <%=dark_primary%>;
+			--bar-bg: <%=mode == 'dark' and dark_primary or primary%>;
+			--blur-radius:<%=blur_radius%>px;
+			--blur-opacity:<%=blur_opacity%>;
+			--blur-radius-dark:<%=blur_radius_dark%>px;
+			--blur-opacity-dark:<%=blur_opacity_dark%>;
+		}
+		<% end -%>
+	</style>
+	<link rel="shortcut icon" href="<%=media%>/favicon.ico">
+	<% if node and node.css then %>
+	<link rel="stylesheet" href="<%=resource%>/<%=node.css%>">
+	<% end -%>
+	<% if css then %>
+	<style title="text/css">
+		<%=css %>
+	</style>
+	<% end -%>
+	<script src="<%=media%>/js/polyfill.min.js?v=1.0"></script>
+	<script src="<%=url('admin/translations', luci.i18n.context.lang)%>?v=<%=ver.luciversion%>"></script>
+	<script src="<%=resource%>/cbi.js?v=<%=ver.luciversion%>"></script>
+	<script src="<%=resource%>/luci.js?v=<%=ver.luciversion%>-<%=asset_ver('/www/luci-static/resources/view/theme/colors.js')%>"></script>
+	<script src="<%=media%>/js/jquery.min.js?v=3.5.1"></script>
+</head>
+
+<body
+	class="lang_<%=luci.i18n.context.lang%> <% if node then %><%= striptags( node.title ) %><% end %> <% if luci.dispatcher.context.authsession then %>logged-in<% end %>"
+	data-page="<%= table.concat(disp.context.requestpath, "-") %>">
+
+	<div class="main">
+		<div class="main-left" id="mainmenu" style="display:none">
+			<div class="sidenav-header d-flex align-items-center">
+				<a class="brand" href="#">
+					<i class="brand-logo"></i>
+					<span class="brand-text"><%=brand_name%></span>
+				</a>
+				<div class="ml-auto">
+					<!-- Sidenav toggler -->
+					<div class="sidenav-toggler d-none d-xl-block active" data-action="sidenav-unpin"
+						data-target="#sidenav-main">
+						<div class="sidenav-toggler-inner">
+							<i class="sidenav-toggler-line"></i>
+							<i class="sidenav-toggler-line"></i>
+							<i class="sidenav-toggler-line"></i>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="main-right">
+			<header class="bg-primary">
+				<div class="fill">
+					<div class="container">
+						<div class="flex1">
+							<a class="showSide"></a>
+							<a class="brand" href="#"><%=brand_name%></a>
+						</div>
+						<div class="status" id="indicators"></div>
+						<div class="dc-actions">
+							<a class="dc-act" href="<%=url('admin/system/theme')%>" title="主题外观"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="9.4" cy="9.4" r="4.9"/><circle cx="14.6" cy="14.6" r="4.9"/></svg></a>
+							<a class="dc-act" id="dcMode" href="#" data-stored="<%=mode%>" data-eff="<%=mode%>" title="<%=mode_label%>"><svg class="dc-ico dc-ico-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.9 1.9M16.8 16.8l1.9 1.9M18.7 5.3l-1.9 1.9M7.2 16.8l-1.9 1.9"/></svg><svg class="dc-ico dc-ico-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20.3 14.7A8.6 8.6 0 0 1 9.3 3.7a8.6 8.6 0 1 0 11 11z"/></svg><svg class="dc-ico dc-ico-auto" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6v16.8"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor" stroke="none"/></svg></a>
+							<a class="dc-act" id="dcReload" href="#" title="刷新"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 12a7.4 7.4 0 1 1-2.2-5.2"/><path d="M19.6 4.4v3.8h-3.8"/></svg></a>
+						</div>
+					</div>
+				</div>
+			</header>
+			<script>
+				(function () {
+					var modeBtn = document.getElementById('dcMode');
+					var reloadBtn = document.getElementById('dcReload');
+					var mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+					function effective() {
+						var stored = modeBtn.getAttribute('data-stored') || 'normal';
+						if (stored == 'dark' || stored == 'light')
+							return stored;
+						return mq.matches ? 'dark' : 'light';
+					}
+
+					function paint(eff) {
+						var stored = modeBtn.getAttribute('data-stored') || 'normal';
+						modeBtn.setAttribute('data-eff', eff);
+						modeBtn.setAttribute('title', '当前' + (eff == 'dark' ? '深色' : '浅色') +
+							(stored == 'normal' ? '（跟随系统）' : '') + '，点击切换到' +
+							(eff == 'dark' ? '浅色' : '深色'));
+					}
+
+					if (reloadBtn)
+						reloadBtn.addEventListener('click', function (ev) {
+							ev.preventDefault();
+							location.reload();
+						});
+
+					if (!modeBtn)
+						return;
+
+					paint(effective());
+					if (mq.addEventListener)
+						mq.addEventListener('change', function () { paint(effective()); });
+
+					/* rpcd 的 apply 带回滚计时器（luci.apply.rollback=90），不 confirm 过一会儿配置会自己回滚 */
+					function commit(uci) {
+						return uci.save().then(function () {
+							return uci.callApply(10, true);
+						}).then(function (rv) {
+							if (rv != 0)
+								throw new Error('apply=' + rv);
+
+							var deadline = Date.now() + 20000;
+							var confirmLoop = function () {
+								return L.resolveDefault(uci.callConfirm(), -1).then(function (crv) {
+									if (crv == 0)
+										return 0;
+									if (Date.now() > deadline)
+										throw new Error('confirm=' + crv);
+									return new Promise(function (r) { window.setTimeout(r, 300); }).then(confirmLoop);
+								});
+							};
+							return confirmLoop();
+						});
+					}
+
+					modeBtn.addEventListener('click', function (ev) {
+						ev.preventDefault();
+						var eff = effective();
+						var next = (eff == 'dark') ? 'light' : 'dark';
+						paint(next);
+						modeBtn.classList.add('dc-loading');
+
+						L.require('uci').then(function (uci) {
+							var loading = uci.load('daocaoren');
+							if (loading && loading.catch)
+								loading = loading.catch(function () {});
+							return loading.then(function () {
+								uci.set('daocaoren', 'global', 'mode', next);
+								return commit(uci);
+							});
+						}).then(function () {
+							location.reload();
+						}).catch(function (e) {
+							modeBtn.classList.remove('dc-loading');
+							paint(eff);
+							alert('切换失败：' + e);
+						});
+					});
+				})();
+			</script>
+			<div class="darkMask"></div>
+			<div id="maincontent">
+				<div class="container">
+					<%- if luci.sys.process.info("uid") == 0 and luci.sys.user.getuser("root") and not luci.sys.user.getpasswd("root") then -%>
+					<div class="alert-message error">
+						<h4><%:No password set!%></h4>
+						<p><%:There is no password set on this router. Please configure a root password to protect the web interface.%>
+						</p>
+						<% if disp.lookup("admin/system/admin") then %>
+						<div class="right"><a class="btn"
+								href="<%=url("admin/system/admin")%>"><%:Go to password configuration...%></a></div>
+						<% end %>
+					</div>
+					<%- end -%>
+
+					<noscript>
+						<div class="alert-message error">
+							<h4><%:JavaScript required!%></h4>
+							<p><%:You must enable JavaScript in your browser or LuCI will not work properly.%></p>
+						</div>
+					</noscript>
+
+					<div id="tabmenu" style="display:none"></div>
+<!-- modemd-pro-widget:begin --><script src="/luci-static/resources/modemd/widget.js" data-modemd-widget="1" data-port="8080" data-tag="0.1.87-1" defer></script><!-- modemd-pro-widget:end -->

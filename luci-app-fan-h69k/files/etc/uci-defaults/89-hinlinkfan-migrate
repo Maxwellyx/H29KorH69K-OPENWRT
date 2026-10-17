@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# 老版本配置迁移：enable/openfeng/levelN_temp/levelN_pwm -> mode + curve
+# 幂等：只有 global.mode 不存在时（老格式）才执行。
+# 文件名用 89- 前缀，保证在 luci-app-hinlinkfan（补默认值）之前跑完。
+
+[ -e /etc/config/hinlinkfan ] || exit 0
+
+[ -n "$(uci -q get hinlinkfan.global.mode)" ] && exit 0
+
+logger -t hinlinkfan "检测到老格式风扇配置，开始迁移"
+
+enable=$(uci -q get hinlinkfan.global.enable)
+openfeng=$(uci -q get hinlinkfan.global.openfeng)
+
+# 老版语义：openfeng=1 强制关风扇，enable=1 启用用户态曲线，否则内核温控
+mode=kernel
+[ "$enable" = "1" ] && mode=manual
+[ "$openfeng" = "1" ] && mode=off
+
+# 把老的 6 档 levelN_temp/levelN_pwm 拼成新曲线
+curve=""
+i=1
+while [ "$i" -le 8 ]; do
+	t=$(uci -q get "hinlinkfan.global.level${i}_temp")
+	p=$(uci -q get "hinlinkfan.global.level${i}_pwm")
+	[ -n "$t" ] && [ -n "$p" ] && curve="$curve $t:$p"
+	i=$((i + 1))
+done
+
+uci -q set "hinlinkfan.global.mode=$mode"
+
+if [ -n "$curve" ]; then
+	uci -q delete hinlinkfan.global.curve
+	for e in $curve; do
+		uci -q add_list "hinlinkfan.global.curve=$e"
+	done
+	# 标记为"不是预设内容"，这样以后手选预设才会覆盖它
+	uci -q set hinlinkfan.global.preset_applied=migrated
+	[ -z "$(uci -q get hinlinkfan.global.hysteresis)" ] && uci -q set hinlinkfan.global.hysteresis=5
+fi
+
+# 清掉老字段，避免页面上出现两套曲线
+uci -q delete hinlinkfan.global.enable
+uci -q delete hinlinkfan.global.openfeng
+i=1
+while [ "$i" -le 8 ]; do
+	uci -q delete "hinlinkfan.global.level${i}_temp"
+	uci -q delete "hinlinkfan.global.level${i}_pwm"
+	i=$((i + 1))
+done
+
+uci -q commit hinlinkfan
+logger -t hinlinkfan "迁移完成：mode=$mode curve=$curve"
+
+exit 0

@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# 注册 daocaoren 主题并把它设为默认。
+#
+# 为什么必须显式设 mediaurlbase：luci-base 自带的 /etc/config/luci 里写的是
+#   option mediaurlbase /luci-static/bootstrap
+# 不覆盖的话首次启动会落在 bootstrap 主题上。
+#
+# uci-defaults 按文件名字典序执行，本文件是 30_，排在 30_luci-theme-bootstrap
+# 之后，所以这里设的值会盖过 bootstrap 设的。
+#
+uci -q batch <<'EOF'
+set luci.themes.DaoCaoRen=/luci-static/daocaoren
+set luci.main.mediaurlbase=/luci-static/daocaoren
+commit luci
+EOF
+exit 0

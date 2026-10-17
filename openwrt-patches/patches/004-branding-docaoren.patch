@@ -1,0 +1,22 @@
+diff --git a/include/version.mk b/include/version.mk
+index b1e414f189..61ee74e59d 100644
+--- a/include/version.mk
++++ b/include/version.mk
+@@ -27,7 +27,7 @@ PKG_CONFIG_DEPENDS += \
+ sanitize = $(call tolower,$(subst _,-,$(subst $(space),-,$(1))))
+ 
+ VERSION_NUMBER:=$(call qstrip,$(CONFIG_VERSION_NUMBER))
+-VERSION_NUMBER:=$(if $(VERSION_NUMBER),$(VERSION_NUMBER),SNAPSHOT)
++VERSION_NUMBER:=$(if $(VERSION_NUMBER),$(VERSION_NUMBER),MSYF)
+ 
+ VERSION_CODE:=$(call qstrip,$(CONFIG_VERSION_CODE))
+ VERSION_CODE:=$(if $(VERSION_CODE),$(VERSION_CODE),$(REVISION))
+@@ -36,7 +36,7 @@ VERSION_REPO:=$(call qstrip,$(CONFIG_VERSION_REPO))
+ VERSION_REPO:=$(if $(VERSION_REPO),$(VERSION_REPO),https://downloads.openwrt.org/snapshots)
+ 
+ VERSION_DIST:=$(call qstrip,$(CONFIG_VERSION_DIST))
+-VERSION_DIST:=$(if $(VERSION_DIST),$(VERSION_DIST),OpenWrt)
++VERSION_DIST:=$(if $(VERSION_DIST),$(VERSION_DIST),DaoCaoRen)
+ VERSION_DIST_SANITIZED:=$(call sanitize,$(VERSION_DIST))
+ 
+ VERSION_MANUFACTURER:=$(call qstrip,$(CONFIG_VERSION_MANUFACTURER))

@@ -1,0 +1,116 @@
+diff --git a/package/lean/default-settings/Makefile b/package/lean/default-settings/Makefile
+index 67b5044b4..09c96c27c 100644
+--- a/package/lean/default-settings/Makefile
++++ b/package/lean/default-settings/Makefile
+@@ -21,7 +21,7 @@ define Package/default-settings
+   CATEGORY:=LuCI
+   TITLE:=LuCI support for Default Settings
+   PKGARCH:=all
+-  DEPENDS:= +luci-compat +@LUCI_LANG_zh-cn +@LUCI_LANG_zh_Hans +@LUCI_LANG_en
++  DEPENDS:= +luci-compat +@LUCI_LANG_zh_Hans
+ endef
+ 
+ define Package/default-settings/description
+diff --git a/package/lean/default-settings/files/zzz-default-settings b/package/lean/default-settings/files/zzz-default-settings
+index 2dbeaefbc..fa1c4f655 100755
+--- a/package/lean/default-settings/files/zzz-default-settings
++++ b/package/lean/default-settings/files/zzz-default-settings
+@@ -1,8 +1,27 @@
+ #!/bin/sh
+ 
++# ===== 主机名：按设备树 model 自动设定（本补丁新增）=====
++# 设备树的 model 属性以 \0 结尾，必须先 tr -d 掉；uci-defaults 阶段 ubus
++# 不一定可用，所以直接读 /proc/device-tree/model，不依赖 ubus。
++#   "HINLINK OPC-H69K Board" -> H69K
++#   "HINLINK OPC-H29K Board" -> H29K
++#   "HINLINK OPC-HT2 Board"  -> HT2
++#   "HINLINK F50-PRO Board"  -> F50-PRO
++#   其它                      -> Hinlink
++dt_model=""
++[ -r /proc/device-tree/model ] && dt_model="$(tr -d '\000' < /proc/device-tree/model)"
++case "$dt_model" in
++	*H69K*)	hn="H69K" ;;
++	*H29K*)	hn="H29K" ;;
++	*HT2*)	hn="HT2" ;;
++	*F50-PRO*)	hn="F50-PRO" ;;
++	*)	hn="Hinlink" ;;
++esac
++
+ uci -q batch <<-EOF
+ 	set system.@system[0].timezone='CST-8'
+ 	set system.@system[0].zonename='Asia/Shanghai'
++	set system.@system[0].hostname='${hn}'
+ 
+ 	delete system.ntp.server
+ 	add_list system.ntp.server='ntp1.aliyun.com'
+@@ -12,6 +31,42 @@ uci -q batch <<-EOF
+ EOF
+ uci commit system
+ 
++# ===== F50-PRO 专属：WAN 走 eth1 + DNS 重定向 / NAT =====
++# 当前 lede 是 fw4(nftables)，规则写 /etc/nftables.d/*.nft（fw4 自动 include）；
++# 老写法往 /etc/firewall.user 里塞是 fw3 的机制，当前版本不会读。
++if [ "$hn" = "F50-PRO" ]; then
++	uci -q batch <<-EOF
++		set network.wan=interface
++		set network.wan.ifname='eth1'
++		set network.wan.proto='dhcp'
++		set network.wan.auto='1'
++		set network.wan.hostname='5G'
++		set network.wan6=interface
++		set network.wan6.ifname='eth1'
++		set network.wan6.proto='dhcpv6'
++		set network.wan6.extendprefix='1'
++		set network.wan6.extend_prefix='1'
++		set network.wan6.auto='1'
++		set network.wan6.hostname='5G'
++		commit network
++	EOF
++
++	if [ -d /etc/nftables.d ]; then
++		cat > /etc/nftables.d/10-hinlink-dns.nft <<-'NFT'
++			# Hinlink F50-PRO：DNS 重定向 + WAN 出口伪装（fw4/nftables）
++			chain hinlink_dns_redirect {
++				type nat hook prerouting priority dstnat; policy accept;
++				udp dport 53 redirect to :53
++				tcp dport 53 redirect to :53
++			}
++			chain hinlink_wan_masq {
++				type nat hook postrouting priority srcnat; policy accept;
++				oifname "eth1" masquerade
++			}
++		NFT
++	fi
++fi
++
+ rm -f /usr/lib/lua/luci/view/admin_status/index/mwan.htm
+ rm -f /usr/lib/lua/luci/view/admin_status/index/upnp.htm
+ rm -f /usr/lib/lua/luci/view/admin_status/index/ddns.htm
+@@ -35,17 +90,9 @@ sed -i 's/services/nas/g'  /usr/lib/lua/luci/view/minidlna_status.htm
+ 
+ sed -i 's/\"services\"/\"nas\"/g' /usr/share/luci/menu.d/luci-app-samba4.json
+ 
+-sed -i 's#downloads.openwrt.org#mirrors.tencent.com/lede#g' /etc/opkg/distfeeds.conf
+-sed -i 's#downloads.openwrt.org#mirrors.tencent.com/lede#g' /etc/apk/repositories.d/distfeeds.list
+ sed -i 's/root::0:0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
+ sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
+ 
+-sed -i "s/# //g" /etc/opkg/distfeeds.conf
+-sed -i '/helloworld/d' /etc/opkg/distfeeds.conf
+-sed -i '/openwrt_luci/ { s/snapshots/releases\/18.06.9/g; }'  /etc/opkg/distfeeds.conf
+-
+-sed -i '/check_signature/d' /etc/opkg.conf
+-
+ sed -i '/REDIRECT --to-ports 53/d' /etc/firewall.user
+ 
+ sed -i '/DISTRIB_REVISION/d' /etc/openwrt_release
+@@ -56,6 +103,9 @@ echo "DISTRIB_DESCRIPTION='LEDE '" >> /etc/openwrt_release
+ sed -i -e 's/^BUILD_ID=.*/BUILD_ID=""/' -e '/OPENWRT_RELEASE/d' /usr/lib/os-release
+ echo 'OPENWRT_RELEASE="LEDE R@BUILD_DATE@"' >> /usr/lib/os-release
+ 
++# ===== 无线默认开启（去掉 option disabled）=====
++[ -f /etc/config/wireless ] && sed -i '/^[[:space:]]*option disabled/d' /etc/config/wireless
++
+ sed -i '/log-facility/d' /etc/dnsmasq.conf
+ echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
+ 

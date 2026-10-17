@@ -1,0 +1,59 @@
+diff --git a/target/linux/rockchip/image/armv8.mk b/target/linux/rockchip/image/armv8.mk
+index 4df7b749c..e9be426c3 100644
+--- a/target/linux/rockchip/image/armv8.mk
++++ b/target/linux/rockchip/image/armv8.mk
+@@ -936,3 +936,54 @@ define Device/wxy_oec-turbo-4g
+   IMAGE/sysupgrade.img.gz := boot-img-ext4 | pine64-img | gzip | append-metadata
+ endef
+ TARGET_DEVICES += wxy_oec-turbo-4g
++# >>> daocaoren dts (auto) >>>
++# HINLINK 设备定义（H29K / H69K / F50-Pro）
++# h29k / h69k 取自 LEDE-Develop；f50pro 在 lede 原树里没有，也取自 LEDE-Develop。
++#
++# 设备名与 DTS 的对应关系由 Device/Default 推出：
++#   DEVICE_DTS = $(SOC)-$(lastword $(subst _, ,$(1)))
++#   hinlink_opc-h29k   -> rk3528-opc-h29k.dts
++#   hinlink_opc-h69k   -> rk3568-opc-h69k.dts
++#   hinlink_opc-f50pro -> rk3528-opc-f50pro.dts
++#
++# 注意 / 不需要在这里定义的：
++#   - hinlink_opc-ht2   lede 原树里已有该设备定义，我们只是提供更新版的
++#                       rk3528-opc-ht2.dts 去覆盖它
++#   - hinlink_opc-h28k/h66k/h68k   lede 原树已有，未改动
++
++define Device/hinlink_opc-h29k
++  DEVICE_VENDOR := HINLINK
++  DEVICE_MODEL := OPC-H29K
++  SOC := rk3528
++  UBOOT_DEVICE_NAME := generic-rk3528
++  IMAGE/sysupgrade.img.gz := boot-common | boot-script rk3528 | pine64-img | gzip | append-metadata
++  DEVICE_PACKAGES := kmod-aic8800s kmod-fb-tft-st7789v wpad-openssl -urngd
++endef
++TARGET_DEVICES += hinlink_opc-h29k
++
++define Device/hinlink_opc-h69k
++$(call Device/hinlink_common)
++  DEVICE_MODEL := OPC-H69K
++  SOC := rk3568
++  DEVICE_PACKAGES += kmod-mt7916-firmware kmod-usb-serial-option uqmi
++endef
++TARGET_DEVICES += hinlink_opc-h69k
++
++# ---------------------------------------------------------------------------
++# H29K 的两个硬件变体：本目录有 DTS，但**没有**独立设备定义（LEDE-Develop 里也没有），
++# 所以要编哪个，就在上面 hinlink_opc-h29k 的定义末尾加一行覆盖 DEVICE_DTS：
++#
++#   rk3528-opc-h29kv5.dts     （471 行，与主 h29k 差 378 行）
++#       DEVICE_DTS := rk3528-opc-h29kv5
++#
++#   rk3528-opc-h29k-V1.3.dts  （464 行，与主 h29k 差 212 行）
++#       DEVICE_DTS := rk3528-opc-h29k-V1.3
++#
++# 例：
++#   define Device/hinlink_opc-h29k
++#     DEVICE_VENDOR := HINLINK
++#     ... 原有内容 ...
++#     DEVICE_DTS := rk3528-opc-h29k-V1.3
++#   endef
++# ---------------------------------------------------------------------------
++# <<< daocaoren dts (auto) <<<

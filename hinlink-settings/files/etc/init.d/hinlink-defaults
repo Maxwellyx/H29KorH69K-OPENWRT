@@ -1,0 +1,30 @@
+#!/bin/sh /etc/rc.common
+#
+# hinlink-defaults —— 出厂默认值（root 密码 / 无线 SSID + 密码）
+#
+# 幂等：做过一次就退出（标记文件见 /usr/libexec/hinlink-defaults）。
+# 无线那部分需要等无线网卡出现、/etc/config/wireless 生成好，
+# 所以后台重试最多约 3 分钟，成功后自动退出。
+START=99
+STOP=01
+
+HELPER=/usr/libexec/hinlink-defaults
+
+start() {
+        [ -x "$HELPER" ] || return 0
+        "$HELPER" 2>/dev/null
+
+        (
+                i=0
+                while [ "$i" -lt 90 ]; do
+                        [ -f /etc/.hinlink-wifi-done ] && break
+                        "$HELPER" 2>/dev/null
+                        i=$((i + 1))
+                        sleep 2
+                done
+        ) &
+}
+
+stop() {
+        return 0
+}

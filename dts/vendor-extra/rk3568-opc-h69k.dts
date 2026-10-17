@@ -1,0 +1,377 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c) 2023 AmadeusGhost <amadeus@jmu.edu.cn>
+
+/dts-v1/;
+
+#include "rk3568-hinlink-opc.dtsi"
+
+/ {
+	model = "HINLINK OPC-H69K Board";
+	compatible = "hinlink,opc-h69k", "rockchip,rk3568";
+
+	aliases {
+		ethernet0 = &gmac1;
+	};
+
+	//modem_reset: modem-reset {
+	//	status = "okay";
+	//	compatible = "daocaoren,modem-switch";
+	//	pinctrl-names = "default";
+	//	pinctrl-0 = <&modem_reset_pin>;
+	//	// 这里保持 GPIO_ACTIVE_LOW 不变，因为你的硬件特性就是低电平有效
+	//	gpio = <&gpio0 RK_PC0 GPIO_ACTIVE_LOW>;
+	//	// 【关键修改】改为 0
+	//	// 逻辑 0 -> 内核看到 ACTIVE_LOW 标志 -> 输出物理高电平 -> 硬件有电
+	//	gpio-init-level = <1>; 
+	//	output-high; 
+	//};
+
+	//gpio-export {
+	//	status="okay";
+	//	compatible = "neardi,gpio-export";
+	//	pinctrl-names = "default";
+	//	neardi,gpio-name = "gpio_export";
+	//	/**
+	//	* below gpio's name were based on neardi ld160 board, please see the  declarelation of board.
+	//	*/
+	//	neardi,gpio-export =  <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
+	//};
+
+	fan: pwm-fan {
+		compatible = "pwm-fan";
+		cooling-levels = <0 90 100 110 120 130 140 150 160 200 255>;
+		#cooling-cells = <2>;
+		pwms = <&pwm0 0 50000 0>;
+	};
+
+	vcc5v0_ahci: vcc5v0-ahci {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sata_pwr_en>;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-name = "vcc5v0_ahci";
+		vin-supply = <&vcc5v0_sys>;
+	};
+
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		clocks = <&rk809 1>;
+		clock-names = "ext_clock";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable>;
+		post-power-on-delay-ms = <300>;
+		power-off-delay-us = <5000000>;
+		reset-gpios = <
+			&gpio3 RK_PA0 GPIO_ACTIVE_LOW
+		>;
+	};
+};
+
+&tsadc {
+	status = "okay";
+	rockchip,hw-tshut-mode = <0>; // 0: 温度达到阈值时关闭系统
+	// rockchip,hw-tshut-polarity = <1>; // 1: 高电平有效
+};
+
+
+&cpu_thermal {
+	trips {
+
+		cpu_low: cpu_low {
+			temperature = <40000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_passive: cpu_passive {
+			temperature = <41000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_active: cpu_active {
+			temperature = <45000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+		
+		cpu_active2: cpu_active {
+			temperature = <50000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_active3: cpu_active {
+			temperature = <55000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_active4: cpu_active {
+			temperature = <57000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_active5: cpu_active {
+			temperature = <59000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_active6: cpu_warm {
+			temperature = <60000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_warm: cpu_warm {
+			temperature = <65000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_hot: cpu_hot {
+			temperature = <70000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		
+		map1 {
+			trip = <&cpu_low>;
+			cooling-device = <&fan 0 0>;
+		};
+
+
+		map2 {
+			trip = <&cpu_passive>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		map3 {
+			trip = <&cpu_active>;
+			cooling-device = <&fan 2 2>;
+		};
+
+		map4 {
+			trip = <&cpu_active2>;
+			cooling-device = <&fan 3 3>;
+		};
+
+		map5 {
+			trip = <&cpu_active3>;
+			cooling-device = <&fan 4 4>;
+		};
+
+		map6 {
+			trip = <&cpu_active4>;
+			cooling-device = <&fan 5 5>;
+		};
+
+		map7 {
+			trip = <&cpu_active5>;
+			cooling-device = <&fan 6 6>;
+		};
+
+		map8 {
+			trip = <&cpu_active6>;
+			cooling-device = <&fan 7 7>;
+		};
+
+		map9 {
+			trip = <&cpu_warm>;
+			cooling-device = <&fan 8 8>;
+		};
+
+		map10 {
+			trip = <&cpu_hot>;
+			cooling-device = <&fan 9 9>;
+		};
+	};
+};
+
+
+&gmac1 {
+	assigned-clocks = <&cru SCLK_GMAC1_RX_TX>, <&cru SCLK_GMAC1>;
+	assigned-clock-parents = <&cru SCLK_GMAC1_RGMII_SPEED>;
+	assigned-clock-rates = <0>, <125000000>;
+	clock_in_out = "output";
+	phy-mode = "rgmii-id";
+	pinctrl-names = "default";
+	pinctrl-0 = <&gmac1m1_miim
+		     &gmac1m1_tx_bus2
+		     &gmac1m1_rx_bus2
+		     &gmac1m1_rgmii_clk
+		     &gmac1m1_rgmii_bus>;
+	snps,reset-gpio = <&gpio1 RK_PB0 GPIO_ACTIVE_LOW>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 20000 100000>;
+	tx_delay = <0x4f>;
+	rx_delay = <0x26>;
+	phy-handle = <&rgmii_phy1>;
+	status = "okay";
+};
+
+&mdio1 {
+	rgmii_phy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x0>;
+	};
+};
+
+
+
+&pinctrl {
+    
+	pcie {
+        pcie_pwr_en: pcie-pwr-en {
+            rockchip,pins = <0 RK_PC4 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+
+		// 新增：pcie3x1 复位引脚配置
+        pcie3x1_reset_pin: pcie3x1-reset-pin {
+            rockchip,pins = <3 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+		
+        // 新增：pcie3x2 复位引脚配置
+        pcie3x2_reset_pin: pcie3x2-reset-pin {
+            rockchip,pins = <2 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+	//modem {
+	//	modem_reset_pin: modem-reset-pin {
+	//		rockchip,pins = <0 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
+	//	};
+	//};
+
+	sata {
+		sata_pwr_en: sata-pwr-en {
+			rockchip,pins = <0 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdio-pwrseq {
+		wifi_enable: wifi-enable {
+			rockchip,pins = <3 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		wifi_host_wake: wifi-host-wake {
+			rockchip,pins = <3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+};
+
+&pwm0 {
+	status = "okay";
+};
+
+&sata0 {
+	target-supply = <&vcc5v0_ahci>;
+};
+
+
+&sdmmc2 {
+	bus-width = <4>;
+	disable-wp;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	keep-power-in-suspend;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	non-removable;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc2m0_bus4 &sdmmc2m0_cmd &sdmmc2m0_clk>;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	vmmc-supply = <&vcc3v3_sys>;
+	vqmmc-supply = <&vcc_1v8>;
+	status = "okay";
+
+	sdio_wifi@0 {
+		reg = <0>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <RK_PD5 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "host-wake";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_host_wake>;
+	};
+
+};
+
+&uart0 {
+    status = "disabled";
+};
+
+&vcc3v3_pcie {
+    compatible = "regulator-fixed";
+    enable-active-high;
+    gpio = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&pcie_pwr_en>;
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    regulator-name = "vcc3v3_pcie";
+    startup-delay-us = <20000>;
+    regulator-boot-on;
+    regulator-load = <500000>;
+    vin-supply = <&vcc5v0_sys>;
+    regulator-always-on;
+    // 新增：6.1+内核特有，禁用regulator的动态负载调节，恢复5.1内核的稳定模式
+    regulator-disable-dynamic;
+};
+
+
+&pcie30phy {
+    data-lanes = <1 2>;
+    clock-frequency = <100000000>;
+    avdd-0v9-supply = <&vdda0v9_pmu>;
+    avdd-1v8-supply = <&vcca1v8_pmu>;
+    vdd-0v9-supply = <&vdda0v9_pmu>;
+    vdd-1v8-supply = <&vcca1v8_pmu>;
+    max-link-speed = <2>;
+    // 新增：禁用ASPM，避免6.1+内核的电源管理干扰（关键，解决6.1+内核特有问题）
+    snps,aspm-disable = <1>;
+    snps,disable-pcie-aspm;
+    status = "okay";
+};
+
+// 1. 给&pcie3x1和&pcie3x2添加枚举超时延长配置（6.1+内核支持）
+&pcie3x1 {
+    num-lanes = <1>;
+    vpcie3v3-supply = <&vcc3v3_pcie>;
+    reset-gpios = <&gpio3 RK_PA4 GPIO_ACTIVE_HIGH>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&pcie3x1_reset_pin>;
+    reset-delay-ms = <50>;
+    post-reset-delay-ms = <100>;
+    pre-init-delay-ms = <100>;
+    rockchip,pcie-wakeup-delay = <200>;
+    snps,aspm-disable = <1>;
+    // 新增：延长枚举超时时间，接近5.1内核的容错性
+    snps,enumeration-timeout = <1000>;  // 延长到1秒，避免网卡枚举超时
+    status = "okay";
+};
+
+&pcie3x2 {
+    num-lanes = <1>;
+    vpcie3v3-supply = <&vcc3v3_pcie>;
+    reset-gpios = <&gpio2 RK_PD0 GPIO_ACTIVE_HIGH>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&pcie3x2_reset_pin>;
+    reset-delay-ms = <50>;
+    post-reset-delay-ms = <100>;
+    pre-init-delay-ms = <500>;
+    rockchip,pcie-wakeup-delay = <200>;
+    snps,aspm-disable = <1>;
+    // 新增：延长枚举超时时间，接近5.1内核的容错性
+    snps,enumeration-timeout = <1000>;  // 延长到1秒，避免网卡枚举超时
+    status = "okay";
+};

@@ -1,0 +1,48 @@
+#!/bin/sh
+# Copyright (C) 2023 Siriling <168620188@qq.com>
+#
+# 【OpenWrt 移植说明】
+#   1) 原版这里 `chmod +x /usr/bin/fancontrol`，但包里没有这个文件 —— 已去掉
+#   2) 原版 `uci -q batch <<-EOF` 里用空格缩进，而 `<<-` 只剥 tab —— 已改成 tab
+#   3) ucitrack 那段 init 名写成 hinlinkfan，实际服务脚本叫 hinlinkfaninit —— 已修正
+#   4) 新版配置是 mode + list curve（老版本是 enable/openfeng/levelN_*），
+#      老格式由同目录的 89-hinlinkfan-migrate 负责转换
+#
+# 本脚本只做"补默认值 + 启服务 + 注册 ucitrack + 清缓存"。
+
+[ -f /etc/config/hinlinkfan ] || touch /etc/config/hinlinkfan
+
+if ! uci -q get hinlinkfan.global >/dev/null; then
+	uci -q batch <<-EOF >/dev/null
+		set hinlinkfan.global=global
+		set hinlinkfan.@global[0].mode=kernel
+		set hinlinkfan.@global[0].tick=2
+		set hinlinkfan.@global[0].hysteresis=4
+		set hinlinkfan.@global[0].ramp=32
+		commit hinlinkfan
+	EOF
+fi
+
+# 曲线缺失时补上设备树档位对应的默认阶梯
+if [ -z "$(uci -q get hinlinkfan.@global[0].curve)" ]; then
+	uci -q batch <<-EOF >/dev/null
+		add_list hinlinkfan.@global[0].curve=45:90
+		add_list hinlinkfan.@global[0].curve=55:120
+		add_list hinlinkfan.@global[0].curve=65:165
+		add_list hinlinkfan.@global[0].curve=75:210
+		commit hinlinkfan
+	EOF
+fi
+
+chmod +x /etc/init.d/hinlinkfaninit
+/etc/init.d/hinlinkfaninit enable
+
+uci -q batch <<-EOF >/dev/null
+	delete ucitrack.@hinlinkfan[-1]
+	add ucitrack hinlinkfan
+	set ucitrack.@hinlinkfan[-1].init=hinlinkfaninit
+	commit ucitrack
+EOF
+
+rm -rf /tmp/luci-*cache
+exit 0
