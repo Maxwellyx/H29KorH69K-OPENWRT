@@ -20,5 +20,8 @@ RM500U 包含 ECM/NCM/RNDIS/MBIM 驱动，不仅依赖 QMI。
 - 补丁通过 `git apply --check` 后才应用；不忽略空白、不猜写入地址。
 - 仅从工作副本的 modem-pro 中移除 Android `adb-enablemodem` 依赖，保留串口及 USB 网卡拨号逻辑。
 - 每次 make 都设置 `DEVTOOLS_SUFFIX=M`，并验证关键软件包没有被 defconfig 丢弃。
+- 为子模块遗漏的 `modemd` 启动脚本补齐最小 procd 服务，明确读取 `/etc/modemd/config.toml`，并在编译前检查打包输入。
+
+流程只缓存下载源码及编译器缓存，失败后也会尽量保存；源码、配置、补丁处理和镜像校验每次仍会执行。缓存不包含 `build_dir`、`staging_dir` 或已生成镜像。
 
 构建成功及镜像结构检查不等于真机适配测试。主板具体屏幕、触摸和电源接线仍需与设备确认；此流程不自动刷写任何设备，也不提供未知来源的 loader。

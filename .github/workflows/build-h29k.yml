@@ -28,6 +28,8 @@ jobs:
       GOPROXY: https://proxy.golang.org,direct
       GOSUMDB: sum.golang.org
       BUILD_JOBS: '2'
+      CCACHE_MAXSIZE: 2GiB
+      CCACHE_COMPILERCHECK: content
     steps:
       - name: Check out adaptation source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -37,7 +39,9 @@ jobs:
           persist-credentials: false
       - name: Check scripts
         run: |
-          bash -n ci/h29k/build.sh ci/h29k/apply-adaptation.sh
+          bash -n ci/h29k/build.sh
+          bash -n ci/h29k/apply-adaptation.sh
+          sh -n ci/h29k/modemd.init
           python3 -m py_compile ci/h29k/verify-image.py
           python3 -m json.tool ci/h29k/source-lock.json >/dev/null
       - name: Prepare hosted Linux runner
@@ -55,6 +59,17 @@ jobs:
           free -h
       - name: Prepare locked OpenWrt source and feeds
         run: bash ci/h29k/build.sh prepare
+      - name: Restore source downloads and compiler cache
+        id: h29k-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        continue-on-error: true
+        with:
+          path: |
+            /tmp/h29k-build/openwrt/dl
+            /tmp/h29k-build/openwrt/.ccache
+          key: h29k-ubuntu24.04-${{ runner.arch }}-v1-${{ hashFiles('ci/h29k/source-lock.json', 'ci/h29k/h29k.seed') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            h29k-ubuntu24.04-${{ runner.arch }}-v1-${{ hashFiles('ci/h29k/source-lock.json', 'ci/h29k/h29k.seed') }}-
       - name: Configure H29K and validate required packages
         run: bash ci/h29k/build.sh configure
       - name: Download build sources
@@ -70,6 +85,15 @@ jobs:
           path: ${{ env.FIRMWARE_OUTPUT_DIR }}
           if-no-files-found: error
           retention-days: 14
+      - name: Save source downloads and compiler cache after success or failure
+        if: ${{ !cancelled() && steps.h29k-cache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        continue-on-error: true
+        with:
+          path: |
+            /tmp/h29k-build/openwrt/dl
+            /tmp/h29k-build/openwrt/.ccache
+          key: ${{ steps.h29k-cache.outputs.cache-primary-key }}
       - name: Upload build logs even if compilation fails
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -78,4 +102,3 @@ jobs:
           path: ${{ env.BUILD_LOG_DIR }}
           if-no-files-found: warn
           retention-days: 14
-

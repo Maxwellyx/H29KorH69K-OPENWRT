@@ -3,6 +3,7 @@
 # Ubuntu 24.04 / Bash. No downloads, compilation, flashing or offset assumptions.
 set -Eeuo pipefail
 export LC_ALL=C
+HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 OPENWRT_REV=94eb0d7a091f53b3c00182735e32e14b29e796ba
 ADAPTATION_REV=8910dc75db7169157565eb6556ba4b33d6489377
@@ -25,7 +26,7 @@ while (($#)); do
   esac
 done
 [[ -n "$openwrt_dir" && -n "$adaptation_dir" ]] || { usage; exit 2; }
-for command in git python3 tar cmp find grep sha256sum realpath; do
+for command in git python3 tar cmp find grep sha256sum realpath install; do
   command -v "$command" >/dev/null || die "Required command missing: $command"
 done
 [[ "$openwrt_dir" = /* && "$adaptation_dir" = /* ]] || die 'Use absolute Linux paths.'
@@ -75,6 +76,21 @@ if s.count(old) != 1:
     raise SystemExit('Expected modem-pro ADB dependency context changed; refusing to guess.')
 p.write_text(s.replace(old, new), newline='\n')
 PY
+
+# The pinned submodule accidentally ignores every file named modemd, including
+# its init script. Its package Makefile nevertheless installs that exact path.
+# Supply a reviewed procd service in the private stage, never in the submodule.
+modemd_init="$stage/modem-pro/files/packaging/openwrt/files/etc/init.d/modemd"
+[[ ! -e "$modemd_init" ]] || die 'Upstream now supplies modemd init; review instead of overwriting.'
+[[ -f "$HERE/modemd.init" ]] || die 'Missing local modemd procd service.'
+sh -n "$HERE/modemd.init"
+install -D -m 0755 "$HERE/modemd.init" "$modemd_init"
+for required_file in \
+  "$modemd_init" \
+  "$stage/modem-pro/config.toml" \
+  "$stage/modem-pro/files/packaging/openwrt/files/lib/netifd/proto/quectel.sh"; do
+  [[ -s "$required_file" ]] || die "Missing modem package input: $required_file"
+done
 
 patches=("$stage"/openwrt-patches/patches/*.patch "$stage"/dts/patches/*.patch)
 pending_patches=()
@@ -128,7 +144,7 @@ package_dir="$openwrt_dir/package/daocaoren"
 stamp="$package_dir/.h29k-integration-revision"
 if [[ -e "$package_dir" || -L "$package_dir" ]]; then
   [[ -d "$package_dir" && ! -L "$package_dir" && -f "$stamp" ]] || die 'package/daocaoren exists and is not this generated working copy.'
-  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/without-adb-v1" ]] || die 'Existing integration revision differs.'
+  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v2" ]] || die 'Existing integration revision differs.'
   # Existing package files must still match the generated staged package.
   while IFS= read -r -d '' source_file; do
     target="$package_dir/${source_file#"$stage/"}"
@@ -157,13 +173,14 @@ done
 if [[ ! -e "$package_dir" ]]; then
   mkdir -- "$package_dir"
   tar -C "$stage" -cf - . | tar -x -C "$package_dir"
-  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/without-adb-v1" > "$stamp"
+  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v2" > "$stamp"
 fi
 
 manifest="$openwrt_dir/h29k-integration.txt"
 {
   printf 'OpenWrt: %s\nAdaptation: %s\nModem: %s\nProtocol: %s\n' "$OPENWRT_REV" "$ADAPTATION_REV" "$MODEM_REV" "$PROTO_REV"
   printf 'Integration fix: removed only +adb-enablemodem from the staged modem-pro Makefile.\n'
+  printf 'Integration fix: supplied the missing modemd procd service with explicit /etc/modemd/config.toml.\n'
   printf 'Integration fix: CRLF normalized to LF for staged patches and shebang scripts.\n'
   printf 'Target: H29K Pro 2025 no battery + RM500U (board compatibility not hardware tested).\n'
   printf 'Required for EVERY make invocation: DEVTOOLS_SUFFIX=M\n'
