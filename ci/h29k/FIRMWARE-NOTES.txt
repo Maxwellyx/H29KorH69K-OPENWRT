@@ -1,0 +1,20 @@
+Target requested: H29K Pro 2025, no battery, Quectel RM500U.
+Image profile: hinlink_opc-h29k from ouyangzq/H29KorH69K-OPENWRT.
+
+This build combines a pinned OpenWrt source tree and pinned feeds with the
+adaptation source from this fork's workflow commit. The source-version report
+and resolved configuration are included in this artifact.
+
+The profile includes AIC8800 SDIO Wi-Fi, GC9307 display, AXS5106 touch,
+Chinese LuCI, modem-pro and USB cellular drivers. The vendor's default
+login/Wi-Fi settings are retained; consult the adaptation source and change
+the defaults during initial setup.
+
+A successful build verifies compilation, image metadata, gzip CRC and the
+disk partition-table signature. It does not establish that all H29K Pro 2025
+board revisions use the same wiring. Boot, display/touch and RM500U dialing
+must still be checked on the actual device before treating this as stable.
+
+SHA256SUMS covers the files in this artifact. The .img.gz is a complete
+disk-style image. Confirm the correct board-specific flashing procedure and
+loader separately. No loader from an unrelated board is supplied here.

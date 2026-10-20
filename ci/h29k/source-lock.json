@@ -1,0 +1,14 @@
+{
+  "openwrt": {
+    "url": "https://github.com/openwrt/openwrt.git",
+    "sha": "94eb0d7a091f53b3c00182735e32e14b29e796ba"
+  },
+  "adaptation_baseline": "8910dc75db7169157565eb6556ba4b33d6489377",
+  "feeds": {
+    "packages": {"url": "https://github.com/openwrt/packages.git", "sha": "70ac3a84406cab03865c55be84de960af815436a"},
+    "luci": {"url": "https://github.com/openwrt/luci.git", "sha": "0a601b651af34ae4a83dd89f417dccdc474ec348"},
+    "routing": {"url": "https://github.com/openwrt/routing.git", "sha": "4b9891b9136259f93294a424507ed24c5e8c1cbd"},
+    "telephony": {"url": "https://github.com/openwrt/telephony.git", "sha": "5d68d53c160a325ea9d03fce393e051573bcc736"},
+    "video": {"url": "https://github.com/openwrt/video.git", "sha": "6917907d4d6c670cf85be525d23216595655061d"}
+  }
+}
