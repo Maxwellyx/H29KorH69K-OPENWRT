@@ -27,7 +27,7 @@ jobs:
       DEVTOOLS_SUFFIX: M
       GOPROXY: https://proxy.golang.org,direct
       GOSUMDB: sum.golang.org
-      BUILD_JOBS: '2'
+      BUILD_JOBS: '4'
       CCACHE_MAXSIZE: 2GiB
       CCACHE_COMPILERCHECK: content
     steps:
@@ -57,6 +57,7 @@ jobs:
             xsltproc zstd patch ccache
           df -h
           free -h
+          nproc
       - name: Prepare locked OpenWrt source and feeds
         run: bash ci/h29k/build.sh prepare
       - name: Restore source downloads and compiler cache
