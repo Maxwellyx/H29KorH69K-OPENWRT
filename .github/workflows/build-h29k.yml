@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      OPENWRT_DIR: ${{ runner.temp }}/h29k/openwrt
-      BUILD_LOG_DIR: ${{ runner.temp }}/h29k-logs
-      FIRMWARE_OUTPUT_DIR: ${{ runner.temp }}/h29k-firmware
+      OPENWRT_DIR: /tmp/h29k-build/openwrt
+      BUILD_LOG_DIR: /tmp/h29k-build/logs
+      FIRMWARE_OUTPUT_DIR: /tmp/h29k-build/firmware
       DEVTOOLS_SUFFIX: M
       GOPROXY: https://proxy.golang.org,direct
       GOSUMDB: sum.golang.org
@@ -78,3 +78,4 @@ jobs:
           path: ${{ env.BUILD_LOG_DIR }}
           if-no-files-found: warn
           retention-days: 14
+
