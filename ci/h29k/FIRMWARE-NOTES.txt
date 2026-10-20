@@ -10,6 +10,11 @@ Chinese LuCI, modem-pro and USB cellular drivers. The vendor's default
 login/Wi-Fi settings are retained; consult the adaptation source and change
 the defaults during initial setup.
 
+Local integration repairs supply the procd service and two small modern LuCI
+entry pages omitted from the pinned source. The device center uses the original
+embedded web application; the service page uses the current rc.list/rc.init API.
+The original uncommitted floating widget is not reproduced.
+
 A successful build verifies compilation, image metadata, gzip CRC and the
 disk partition-table signature. It does not establish that all H29K Pro 2025
 board revisions use the same wiring. Boot, display/touch and RM500U dialing

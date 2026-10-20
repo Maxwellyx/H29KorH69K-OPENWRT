@@ -42,6 +42,7 @@ jobs:
           bash -n ci/h29k/build.sh
           bash -n ci/h29k/apply-adaptation.sh
           sh -n ci/h29k/modemd.init
+          node -e 'for (const f of process.argv.slice(1)) new Function(require("fs").readFileSync(f, "utf8"));' ci/h29k/luci-views/overview.js ci/h29k/luci-views/service.js
           python3 -m py_compile ci/h29k/verify-image.py
           python3 -m json.tool ci/h29k/source-lock.json >/dev/null
       - name: Prepare hosted Linux runner

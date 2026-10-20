@@ -92,6 +92,31 @@ for required_file in \
   [[ -s "$required_file" ]] || die "Missing modem package input: $required_file"
 done
 
+# The same upstream ignore rule also excluded the modern LuCI views. Keep the
+# embedded device-center application and add only its small LuCI entry pages.
+for view_name in overview service; do
+  view_source="$HERE/luci-views/$view_name.js"
+  view_target="$stage/modem-pro/files/packaging/openwrt/luci/files/www/luci-static/resources/view/modemd/$view_name.js"
+  [[ -s "$view_source" ]] || die "Missing local LuCI view: $view_name"
+  [[ ! -e "$view_target" ]] || die 'Upstream now supplies modern views; review instead of overwriting.'
+  install -D -m 0644 "$view_source" "$view_target"
+done
+python3 - "$stage/modem-pro/files/packaging/openwrt/luci/files/usr/share/rpcd/acl.d/luci-app-modemd.json" <<'PY'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+acl = json.loads(p.read_text())
+grant = acl['luci-app-modemd']
+for access, old_method, new_method in [
+    ('read', 'getInitList', 'list'), ('write', 'setInitAction', 'init')
+]:
+    ubus = grant[access]['ubus']
+    if ubus.get('luci') != [old_method] or 'rc' in ubus:
+        raise SystemExit('Modem ACL differs from the pinned legacy init API; refusing to guess.')
+    del ubus['luci']
+    ubus['rc'] = [new_method]
+p.write_text(json.dumps(acl, ensure_ascii=False, indent=2) + '\n', newline='\n')
+PY
+
 patches=("$stage"/openwrt-patches/patches/*.patch "$stage"/dts/patches/*.patch)
 pending_patches=()
 for patch_file in "${patches[@]}"; do
@@ -144,7 +169,7 @@ package_dir="$openwrt_dir/package/daocaoren"
 stamp="$package_dir/.h29k-integration-revision"
 if [[ -e "$package_dir" || -L "$package_dir" ]]; then
   [[ -d "$package_dir" && ! -L "$package_dir" && -f "$stamp" ]] || die 'package/daocaoren exists and is not this generated working copy.'
-  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v2" ]] || die 'Existing integration revision differs.'
+  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v3" ]] || die 'Existing integration revision differs.'
   # Existing package files must still match the generated staged package.
   while IFS= read -r -d '' source_file; do
     target="$package_dir/${source_file#"$stage/"}"
@@ -173,7 +198,7 @@ done
 if [[ ! -e "$package_dir" ]]; then
   mkdir -- "$package_dir"
   tar -C "$stage" -cf - . | tar -x -C "$package_dir"
-  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v2" > "$stamp"
+  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v3" > "$stamp"
 fi
 
 manifest="$openwrt_dir/h29k-integration.txt"
@@ -181,6 +206,7 @@ manifest="$openwrt_dir/h29k-integration.txt"
   printf 'OpenWrt: %s\nAdaptation: %s\nModem: %s\nProtocol: %s\n' "$OPENWRT_REV" "$ADAPTATION_REV" "$MODEM_REV" "$PROTO_REV"
   printf 'Integration fix: removed only +adb-enablemodem from the staged modem-pro Makefile.\n'
   printf 'Integration fix: supplied the missing modemd procd service with explicit /etc/modemd/config.toml.\n'
+  printf 'Integration fix: supplied minimal modern LuCI views and migrated legacy init ACL methods to rc.list/rc.init.\n'
   printf 'Integration fix: CRLF normalized to LF for staged patches and shebang scripts.\n'
   printf 'Target: H29K Pro 2025 no battery + RM500U (board compatibility not hardware tested).\n'
   printf 'Required for EVERY make invocation: DEVTOOLS_SUFFIX=M\n'

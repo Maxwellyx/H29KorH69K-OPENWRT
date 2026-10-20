@@ -21,6 +21,7 @@ RM500U 包含 ECM/NCM/RNDIS/MBIM 驱动，不仅依赖 QMI。
 - 仅从工作副本的 modem-pro 中移除 Android `adb-enablemodem` 依赖，保留串口及 USB 网卡拨号逻辑。
 - 每次 make 都设置 `DEVTOOLS_SUFFIX=M`，并验证关键软件包没有被 defconfig 丢弃。
 - 为子模块遗漏的 `modemd` 启动脚本补齐最小 procd 服务，明确读取 `/etc/modemd/config.toml`，并在编译前检查打包输入。
+- 为遗漏的现代 LuCI 页面补齐最小入口：设备中心打开原作者的内置网页；服务控制使用当前 OpenWrt 的 `rc.list/rc.init`，对应权限从旧接口等价迁移。此补齐页面不复刻原作者未提交的悬浮组件。
 
 流程只缓存下载源码及编译器缓存，失败后也会尽量保存；源码、配置、补丁处理和镜像校验每次仍会执行。缓存不包含 `build_dir`、`staging_dir` 或已生成镜像。
 
