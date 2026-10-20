@@ -53,6 +53,9 @@ configure() {
     TARGET_rockchip_armv8_DEVICE_hinlink_opc-h29k \
     PACKAGE_luci PACKAGE_luci-app-modemd-pro PACKAGE_modemd-pro \
     PACKAGE_luci-proto-modem-pro PACKAGE_kmod-aic8800-sdio \
+    MODEM_PRO_QUECTEL PACKAGE_uqmi PACKAGE_umbim \
+    PACKAGE_kmod-usb-wdm PACKAGE_kmod-usb-net-qmi-wwan \
+    PACKAGE_kmod-usb-net-cdc-mbim \
     PACKAGE_kmod-usb-serial-option PACKAGE_kmod-usb-net-cdc-ether \
     PACKAGE_kmod-usb-net-cdc-ncm PACKAGE_kmod-usb-net-rndis \
     PACKAGE_video-support PACKAGE_tft-display; do
@@ -109,7 +112,7 @@ package() {
       echo
       echo "Image: \`$image_name\`"
       echo
-      echo 'Download the H29K-RM500U artifact above. It includes SHA256SUMS, the resolved configuration and source versions.'
+      echo 'Download the H29K-RM502Q-GL artifact above. It includes SHA256SUMS, the resolved configuration and source versions.'
       echo
       echo 'Build and disk-image checks passed; boot, screen and cellular behavior still require testing on the actual H29K Pro 2025 board.'
     } >> "$GITHUB_STEP_SUMMARY"

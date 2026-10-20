@@ -63,13 +63,39 @@ for p in root.rglob('*'):
             p.write_bytes(data.replace(b'\r\n', b'\n'))
 PY
 
+# The upstream AIC archive contains CRLF source files while its patches use LF.
+# Run normalization after unpacking and before the normal OpenWrt patch step.
+[[ -f "$HERE/normalize-aic-source.py" ]] || die 'Missing AIC source normalizer.'
+install -m 0644 "$HERE/normalize-aic-source.py" "$stage/aic8800/normalize-source.py"
+python3 - "$stage/aic8800/Makefile" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+s = p.read_text(encoding="utf-8")
+old = "  ifneq ($(shell grep -c 'del_station)(struct wiphy \\*wiphy, struct wireless_dev' $(AIC_MAC80211_CFG80211_H) 2>/dev/null),0)"
+new = "  ifeq ($(shell grep -q 'del_station.*struct wireless_dev' \"$(AIC_MAC80211_CFG80211_H)\" 2>/dev/null && echo y),y)"
+if s.count(old) != 1 or 'define Build/Patch' in s:
+    raise SystemExit('Pinned AIC Makefile context changed; refusing to guess.')
+s = s.replace(old, new)
+hook = '''# Normalize only files named by the pinned text patches, before applying them.
+define Build/Patch
+\tpython3 "$(CURDIR)/normalize-source.py" "$(PKG_BUILD_DIR)" "$(CURDIR)/patches"
+\t$(Build/Patch/Default)
+endef
+
+'''
+needle = 'define Build/Compile\n'
+if s.count(needle) != 1:
+    raise SystemExit('Missing unique AIC build definition.')
+p.write_text(s.replace(needle, hook + needle), encoding='utf-8', newline='\n')
+PY
+
 # Minimal, reviewable integration fix in the staged package only.
-# adb-enablemodem only helps Android ADB devices. RM500U uses USB serial/USB net,
+# adb-enablemodem only helps Android ADB devices. RM502Q-GL uses USB serial/USB net,
 # and modem-pro does not invoke adb. Keep its QMI/MBIM/ECM/NCM/RNDIS code intact.
 python3 - "$stage/modem-pro/Makefile" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
-s = p.read_text()
+s = p.read_text(encoding="utf-8")
 old = 'DEPENDS:=+kmod-usb-serial-option +kmod-usb-wdm +adb-enablemodem \\\n'
 new = 'DEPENDS:=+kmod-usb-serial-option +kmod-usb-wdm \\\n'
 if s.count(old) != 1:
@@ -169,7 +195,7 @@ package_dir="$openwrt_dir/package/daocaoren"
 stamp="$package_dir/.h29k-integration-revision"
 if [[ -e "$package_dir" || -L "$package_dir" ]]; then
   [[ -d "$package_dir" && ! -L "$package_dir" && -f "$stamp" ]] || die 'package/daocaoren exists and is not this generated working copy.'
-  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v3" ]] || die 'Existing integration revision differs.'
+  [[ $(cat "$stamp") = "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm502q-v4" ]] || die 'Existing integration revision differs.'
   # Existing package files must still match the generated staged package.
   while IFS= read -r -d '' source_file; do
     target="$package_dir/${source_file#"$stage/"}"
@@ -198,7 +224,7 @@ done
 if [[ ! -e "$package_dir" ]]; then
   mkdir -- "$package_dir"
   tar -C "$stage" -cf - . | tar -x -C "$package_dir"
-  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm500u-v3" > "$stamp"
+  printf '%s\n' "$ADAPTATION_REV/$MODEM_REV/$PROTO_REV/rm502q-v4" > "$stamp"
 fi
 
 manifest="$openwrt_dir/h29k-integration.txt"
@@ -208,7 +234,8 @@ manifest="$openwrt_dir/h29k-integration.txt"
   printf 'Integration fix: supplied the missing modemd procd service with explicit /etc/modemd/config.toml.\n'
   printf 'Integration fix: supplied minimal modern LuCI views and migrated legacy init ACL methods to rc.list/rc.init.\n'
   printf 'Integration fix: CRLF normalized to LF for staged patches and shebang scripts.\n'
-  printf 'Target: H29K Pro 2025 no battery + RM500U (board compatibility not hardware tested).\n'
+  printf 'Integration fix: normalized AIC patch-target source files before patching and repaired cfg80211 feature detection.\n'
+  printf 'Target: H29K Pro 2025 no battery + RM502Q-GL (board compatibility not hardware tested).\n'
   printf 'Required for EVERY make invocation: DEVTOOLS_SUFFIX=M\n'
   printf 'The kernel patch stack is installed, not yet compiled or validated on hardware.\n'
   printf '\nInstalled kernel patches:\n'

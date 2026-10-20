@@ -1,4 +1,4 @@
-name: Build H29K RM500U
+name: Build H29K RM502Q-GL
 
 on:
   workflow_dispatch:
@@ -12,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: h29k-rm500u-${{ github.ref }}
+  group: h29k-firmware-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   firmware:
-    name: H29K Pro 2025 / RM500U
+    name: H29K Pro 2025 / RM502Q-GL
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
@@ -43,7 +43,7 @@ jobs:
           bash -n ci/h29k/apply-adaptation.sh
           sh -n ci/h29k/modemd.init
           node -e 'for (const f of process.argv.slice(1)) new Function(require("fs").readFileSync(f, "utf8"));' ci/h29k/luci-views/overview.js ci/h29k/luci-views/service.js
-          python3 -m py_compile ci/h29k/verify-image.py
+          python3 -m py_compile ci/h29k/verify-image.py ci/h29k/normalize-aic-source.py
           python3 -m json.tool ci/h29k/source-lock.json >/dev/null
       - name: Prepare hosted Linux runner
         run: |
@@ -72,6 +72,7 @@ jobs:
           key: h29k-ubuntu24.04-${{ runner.arch }}-v1-${{ hashFiles('ci/h29k/source-lock.json', 'ci/h29k/h29k.seed') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             h29k-ubuntu24.04-${{ runner.arch }}-v1-${{ hashFiles('ci/h29k/source-lock.json', 'ci/h29k/h29k.seed') }}-
+            h29k-ubuntu24.04-${{ runner.arch }}-v1-
       - name: Configure H29K and validate required packages
         run: bash ci/h29k/build.sh configure
       - name: Download build sources
@@ -83,7 +84,7 @@ jobs:
       - name: Upload firmware and checksums
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: H29K-RM500U-${{ github.run_number }}
+          name: H29K-RM502Q-GL-${{ github.run_number }}
           path: ${{ env.FIRMWARE_OUTPUT_DIR }}
           if-no-files-found: error
           retention-days: 14

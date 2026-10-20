@@ -1,4 +1,4 @@
-Target requested: H29K Pro 2025, no battery, Quectel RM500U.
+Target requested: H29K Pro 2025, no battery, Quectel RM502Q-GL.
 Image profile: hinlink_opc-h29k from ouyangzq/H29KorH69K-OPENWRT.
 
 This build combines a pinned OpenWrt source tree and pinned feeds with the
@@ -17,7 +17,7 @@ The original uncommitted floating widget is not reproduced.
 
 A successful build verifies compilation, image metadata, gzip CRC and the
 disk partition-table signature. It does not establish that all H29K Pro 2025
-board revisions use the same wiring. Boot, display/touch and RM500U dialing
+board revisions use the same wiring. Boot, display/touch and RM502Q-GL dialing
 must still be checked on the actual device before treating this as stable.
 
 SHA256SUMS covers the files in this artifact. The .img.gz is a complete

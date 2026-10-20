@@ -1,4 +1,4 @@
-# H29K Pro 2025 (no battery) + Quectel RM500U, engineering build.
+# H29K Pro 2025 (no battery) + Quectel RM502Q-GL, engineering build.
 # Board revision/GC9307+AXS5106 wiring still require on-device verification.
 # Every make invocation MUST include DEVTOOLS_SUFFIX=M.
 CONFIG_TARGET_rockchip=y
@@ -27,7 +27,7 @@ CONFIG_MODEM_PRO_QUECTEL=y
 # CONFIG_MODEM_PRO_FIBOCOM is not set
 # CONFIG_MODEM_PRO_MEIG is not set
 
-# RM500U is a Unisoc modem; retain Ethernet USB modes, not just Qualcomm QMI.
+# RM502Q-GL plus common USB modems: retain QMI, MBIM and Ethernet USB modes.
 # Firmware includes drivers only: it does not send USB-mode-changing AT commands.
 CONFIG_PACKAGE_kmod-usb-core=y
 CONFIG_PACKAGE_kmod-usb3=y
