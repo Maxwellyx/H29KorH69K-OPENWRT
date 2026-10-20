@@ -1,0 +1,82 @@
+name: Build compatible H29K TUN module
+
+on:
+  push:
+    branches: [h29k-proxy-tun-20261020]
+    paths: ['.github/workflows/build-proxy-tun.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tun:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      OPENWRT_DIR: /tmp/h29k-build/openwrt
+      BUILD_LOG_DIR: /tmp/h29k-build/logs
+      FIRMWARE_OUTPUT_DIR: /tmp/h29k-build/module
+      DEVTOOLS_SUFFIX: M
+      CCACHE_MAXSIZE: 2GiB
+      CCACHE_COMPILERCHECK: content
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Prepare build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang flex bison g++ gawk gcc-multilib gettext git libncurses-dev libssl-dev python3 python3-setuptools python3-pyelftools rsync swig unzip zlib1g-dev file wget curl ca-certificates libelf-dev libzstd-dev pkgconf subversion xsltproc zstd patch ccache
+      - name: Prepare original locked source
+        run: bash ci/h29k/build.sh prepare
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        continue-on-error: true
+        with:
+          path: |
+            /tmp/h29k-build/openwrt/dl
+            /tmp/h29k-build/openwrt/.ccache
+          key: h29k-tun-${{ github.run_id }}
+          restore-keys: h29k-ubuntu24.04-${{ runner.arch }}-v1-
+      - name: Reproduce original kernel and build standalone module
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ci/h29k/build.sh configure
+          make -C "$OPENWRT_DIR" DEVTOOLS_SUFFIX=M -j4 V=s tools/install 2>&1 | tee "$BUILD_LOG_DIR/tools.log"
+          make -C "$OPENWRT_DIR" DEVTOOLS_SUFFIX=M -j4 V=s toolchain/install 2>&1 | tee "$BUILD_LOG_DIR/toolchain.log"
+          make -C "$OPENWRT_DIR" DEVTOOLS_SUFFIX=M -j4 V=s target/linux/compile 2>&1 | tee "$BUILD_LOG_DIR/kernel.log"
+          kernel_dir="$OPENWRT_DIR/build_dir/target-aarch64_generic_musl/linux-rockchip_armv8/linux-6.18.55"
+          test "$(cat "$kernel_dir/.vermagic")" = 3bd85467b5751a881ea3ef6b42cd4a12
+          module_dir=/tmp/h29k-tun-module
+          mkdir -p "$module_dir" "$FIRMWARE_OUTPUT_DIR"
+          cp "$kernel_dir"/drivers/net/tun*.[ch] "$module_dir/"
+          printf 'obj-m := tun.o\nccflags-y += -DCONFIG_TUN_MODULE=1\n' > "$module_dir/Makefile"
+          cross_bin=$(find "$OPENWRT_DIR/staging_dir" -path '*/bin/aarch64-openwrt-linux-musl-gcc' \( -type f -o -type l \) -print -quit)
+          test -n "$cross_bin"
+          cross_prefix=${cross_bin%gcc}
+          export PATH="$OPENWRT_DIR/staging_dir/host/bin:$(dirname "$cross_bin"):$PATH"
+          export STAGING_DIR="$OPENWRT_DIR/staging_dir/target-aarch64_generic_musl"
+          make -C "$kernel_dir" ARCH=arm64 CROSS_COMPILE="$cross_prefix" M="$module_dir" -j4 modules 2>&1 | tee "$BUILD_LOG_DIR/tun-module.log"
+          "${cross_prefix}strip" --strip-debug "$module_dir/tun.ko"
+          cp "$module_dir/tun.ko" "$FIRMWARE_OUTPUT_DIR/"
+          cp "$kernel_dir/.config" "$FIRMWARE_OUTPUT_DIR/original-kernel.config"
+          cp "$kernel_dir/.vermagic" "$FIRMWARE_OUTPUT_DIR/original-kernel.vermagic"
+          "${cross_prefix}readelf" -p .modinfo "$module_dir/tun.ko" > "$FIRMWARE_OUTPUT_DIR/module-info.txt"
+          cp ci/h29k/source-lock.json "$FIRMWARE_OUTPUT_DIR/"
+          cp "$BUILD_LOG_DIR/source-versions.txt" "$FIRMWARE_OUTPUT_DIR/"
+          (cd "$FIRMWARE_OUTPUT_DIR" && sha256sum tun.ko > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: H29K-proxy-tun-${{ github.run_number }}
+          path: /tmp/h29k-build/module
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: H29K-proxy-tun-logs-${{ github.run_number }}
+          path: /tmp/h29k-build/logs
+          retention-days: 14
